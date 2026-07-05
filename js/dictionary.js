@@ -85,6 +85,18 @@ export async function lookupWord(word) {
     definition: m.definitions?.[0]?.definition || '',
   }));
 
+  // 收集字典附的例句（免費模式的例句參考來源），最多 2 句
+  const examples = [];
+  for (const e of data) {
+    for (const m of e.meanings || []) {
+      for (const def of m.definitions || []) {
+        if (def.example && examples.length < 2) {
+          examples.push({ en: def.example, zh: '' });
+        }
+      }
+    }
+  }
+
   // 補上中文：單字本身 + 每條英文定義（並行翻譯，失敗就留空只顯示英文）
   const [wordZh, ...defsZh] = await Promise.all([
     translateToZh(entry.word),
@@ -92,7 +104,20 @@ export async function lookupWord(word) {
   ]);
   meanings.forEach((m, i) => { m.zh = defsZh[i] || ''; });
 
-  return { found: true, word: entry.word, phonetic, audio, meanings, wordZh };
+  return { found: true, word: entry.word, phonetic, audio, meanings, wordZh, examples };
+}
+
+// 免費模式的例句備援：字典沒附例句時，依詞性給句型模板
+export function templateExamples(partOfSpeech, word) {
+  const w = word;
+  const templates = {
+    noun: [`I have a little ${w}.`, `The ${w} is on the table.`],
+    verb: [`I ${w} every day.`, `We like to ${w} together.`],
+    adjective: [`The dog is very ${w}.`, `It was a ${w} day.`],
+    adverb: [`She sings ${w}.`, `He ${w} finished his homework.`],
+  };
+  const list = templates[partOfSpeech] || [`This is my new word: ${w}.`, `I can use ${w} in a sentence.`];
+  return list.map((en) => ({ en, zh: '' }));
 }
 
 // 拼字建議：Datamuse 的 sp= 模糊比對，回傳最多 3 個候選字

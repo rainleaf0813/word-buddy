@@ -34,6 +34,7 @@ export default {
     try {
       if (url.pathname === '/grammar') return await grammar(request, env, cors);
       if (url.pathname === '/tts') return await tts(request, env, ctx, cors);
+      if (url.pathname === '/word') return await wordInfo(request, env, ctx, cors);
       return json({ error: 'not found' }, 404, cors);
     } catch (err) {
       return json({ error: String(err) }, 500, cors);
@@ -103,6 +104,83 @@ async function grammar(request, env, cors) {
   const data = await res.json();
   const text = data.content?.find((b) => b.type === 'text')?.text || '{}';
   return json(JSON.parse(text), 200, cors);
+}
+
+// ===== 單字資訊（拼讀式音標 + 兒童例句，Claude Haiku，快取 30 天）=====
+
+const WORD_SCHEMA = {
+  type: 'object',
+  properties: {
+    respelling: {
+      type: 'string',
+      description:
+        '美式兒童字典拼讀式音標（respelling），小寫、音節用連字號分隔，重音節可用長音符號，' +
+        '例如 once → wuns、adorable → uh-dor-uh-bul、finally → fī-nuh-lē。不要用 IPA。',
+    },
+    examples: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          en: { type: 'string', description: '使用該單字的英文例句，小學程度、8-12 個字、生活化' },
+          zh: { type: 'string', description: '該例句的繁體中文翻譯' },
+        },
+        required: ['en', 'zh'],
+        additionalProperties: false,
+      },
+      description: '兩句例句',
+    },
+  },
+  required: ['respelling', 'examples'],
+  additionalProperties: false,
+};
+
+async function wordInfo(request, env, ctx, cors) {
+  if (!env.ANTHROPIC_API_KEY) return json({ error: 'ANTHROPIC_API_KEY not set' }, 503, cors);
+  const { word } = await request.json();
+  if (!word || !/^[A-Za-z][A-Za-z'-]{0,40}$/.test(word)) return json({ error: 'bad word' }, 400, cors);
+
+  const key = word.toLowerCase();
+  const cacheKey = new Request(`https://word.cache/v1/${encodeURIComponent(key)}`, { method: 'GET' });
+  const cache = caches.default;
+  const hit = await cache.match(cacheKey);
+  if (hit) {
+    const cached = new Response(hit.body, hit);
+    Object.entries(cors).forEach(([k, v]) => cached.headers.set(k, v));
+    return cached;
+  }
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 600,
+      system:
+        '你替 11 歲、母語為繁體中文的女孩準備英文單字學習資料。' +
+        '例句要生活化、正向、適合小學生，兩句使用不同句型。',
+      messages: [{ role: 'user', content: `單字：${key}` }],
+      output_config: { format: { type: 'json_schema', schema: WORD_SCHEMA } },
+    }),
+  });
+  if (!res.ok) return json({ error: `anthropic ${res.status}` }, 502, cors);
+
+  const data = await res.json();
+  const text = data.content?.find((b) => b.type === 'text')?.text || '{}';
+  const response = new Response(text, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=2592000',
+      ...cors,
+    },
+  });
+  ctx.waitUntil(cache.put(cacheKey, response.clone()));
+  return response;
 }
 
 // ===== 朗讀（Azure 神經語音，Worker Cache 快取重複句子）=====

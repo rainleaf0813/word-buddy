@@ -1,9 +1,12 @@
 // 主流程：學單字 → 造句 → 練發音
 
-import { lookupWord, spellingSuggestions, posToZh } from './dictionary.js';
+import { lookupWord, spellingSuggestions, posToZh, templateExamples } from './dictionary.js';
 import { checkGrammar, checkGrammarAI, localChecks } from './grammar.js';
 import { speak, listen, comparePronunciation, sttSupported, ttsSupported } from './speech.js';
-import { getWords, getStars, recordLearned, removeWord, getMode, setMode } from './storage.js';
+import {
+  getWords, getStars, recordLearned, removeWord, getMode, setMode,
+  addStar, getDailyProgress, getStreak,
+} from './storage.js';
 import { WORKER_URL } from './config.js';
 
 const $ = (id) => document.getElementById(id);
@@ -11,9 +14,10 @@ const $ = (id) => document.getElementById(id);
 const state = {
   word: '',
   phonetic: '',
+  respelling: '',   // 拼讀式音標（AI 模式由 Claude 生成）
   audio: '',
   sentence: '',
-  passStreak: 0, // 需要連續唸對的次數（目前 1 次即過關）
+  examples: [],     // 例句參考 [{en, zh}]
 };
 
 // ===== 畫面切換 =====
@@ -51,6 +55,30 @@ function escapeHtml(s) {
 function refreshStars() {
   $('star-count').textContent = `⭐ ${getStars()}`;
 }
+
+// ===== 每日進度與連續打卡 =====
+
+function renderDailyBar() {
+  const { count, goal } = getDailyProgress();
+  const streak = getStreak();
+  const bar = $('daily-bar');
+  bar.classList.toggle('is-done', count >= goal);
+  bar.innerHTML = `
+    <span>${count >= goal ? '🎉 今日目標達成！' : '📚 今天'} ${count}/${goal} 個單字</span>
+    ${streak > 0 ? `<span class="daily-streak">連續 ${streak} 天 🔥</span>` : ''}`;
+}
+
+// ===== 回首頁 =====
+
+function goHome() {
+  $('word-input').value = '';
+  $('word-feedback').innerHTML = '';
+  $('word-card').classList.add('hidden');
+  renderDailyBar();
+  showScreen('word');
+}
+
+$('btn-home').addEventListener('click', goHome);
 
 // ===== 模式切換（免費 / AI）=====
 
@@ -98,10 +126,14 @@ $('word-form').addEventListener('submit', async (e) => {
   feedback.innerHTML = card('hint', '查詢中…', '<p>翻字典中，等我一下 📚</p>');
 
   try {
-    const result = await lookupWord(input);
+    // AI 模式同時向 Worker 要拼讀式音標與例句（有快取；失敗不影響流程）
+    const [result, aiInfo] = await Promise.all([
+      lookupWord(input),
+      fetchWordInfoAI(input),
+    ]);
     if (result.found) {
       feedback.innerHTML = '';
-      showWordCard(result);
+      showWordCard(result, aiInfo);
     } else {
       const suggestions = await spellingSuggestions(input);
       if (suggestions.length) {
@@ -134,15 +166,39 @@ $('word-form').addEventListener('submit', async (e) => {
   }
 });
 
-function showWordCard({ word, phonetic, audio, meanings, wordZh }) {
+// AI 模式取得拼讀式音標與例句（Worker /word，有 30 天快取）；免費模式或失敗回傳 null
+async function fetchWordInfoAI(word) {
+  if (getMode() !== 'ai' || !aiAvailable()) return null;
+  try {
+    const res = await fetch(`${WORKER_URL}/word`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function showWordCard({ word, phonetic, audio, meanings, wordZh, examples }, aiInfo) {
   state.word = word;
   state.phonetic = phonetic;
+  state.respelling = aiInfo?.respelling || '';
   state.audio = audio;
+  // 例句優先順序：Claude 例句（含中文）→ 字典附的例句 → 詞性句型模板
+  state.examples = aiInfo?.examples?.length
+    ? aiInfo.examples
+    : (examples?.length ? examples : templateExamples(meanings?.[0]?.partOfSpeech, word));
+
+  // 音標：AI 模式顯示拼讀式（跟學校講義一樣），免費模式顯示 IPA
+  const phoneticDisplay = state.respelling ? `[ ${state.respelling} ]` : (phonetic || '');
 
   const cardEl = $('word-card');
   cardEl.innerHTML = `
     <div class="word-text">${escapeHtml(word)}</div>
-    <div class="word-phonetic">${escapeHtml(phonetic || '')}</div>
+    <div class="word-phonetic">${escapeHtml(phoneticDisplay)}</div>
     ${wordZh ? `<div class="word-zh">${escapeHtml(wordZh)}</div>` : ''}
     <ul class="word-meanings">
       ${meanings.map((m) => `<li><span class="pos-tag">${escapeHtml(posToZh(m.partOfSpeech))}</span>${escapeHtml(m.definition)}${m.zh ? `<div class="def-zh">${escapeHtml(m.zh)}</div>` : ''}</li>`).join('')}
@@ -154,13 +210,40 @@ function showWordCard({ word, phonetic, audio, meanings, wordZh }) {
   cardEl.classList.remove('hidden');
 
   $('btn-word-audio').addEventListener('click', () => playWordAudio(word, audio));
-  $('btn-word-next').addEventListener('click', () => {
-    $('sentence-word').textContent = state.word;
-    $('sentence-input').value = '';
-    $('sentence-feedback').innerHTML = '';
-    showScreen('sentence');
-  });
+  $('btn-word-next').addEventListener('click', enterSentenceStage);
 }
+
+// 進入造句階段（學新字與單字本重練共用）
+function enterSentenceStage() {
+  $('sentence-word').textContent = state.word;
+  $('sentence-input').value = '';
+  $('sentence-feedback').innerHTML = '';
+  renderExamples();
+  showScreen('sentence');
+}
+
+// ===== 例句參考 =====
+
+function renderExamples() {
+  const box = $('examples-box');
+  const list = $('examples-list');
+  if (!state.examples.length) {
+    box.classList.add('hidden');
+    return;
+  }
+  list.innerHTML = state.examples.slice(0, 2).map((ex) =>
+    `<li>${escapeHtml(ex.en)}${ex.zh ? `<div class="ex-zh">${escapeHtml(ex.zh)}</div>` : ''}</li>`
+  ).join('');
+  list.classList.remove('hidden');
+  $('btn-toggle-examples').textContent = '隱藏例句';
+  box.classList.remove('hidden');
+}
+
+$('btn-toggle-examples').addEventListener('click', () => {
+  const list = $('examples-list');
+  const hidden = list.classList.toggle('hidden');
+  $('btn-toggle-examples').textContent = hidden ? '顯示例句' : '隱藏例句';
+});
 
 function playWordAudio(word, audioUrl) {
   if (audioUrl) {
@@ -355,6 +438,7 @@ function finishLearning(withSpeech) {
   recordLearned({
     word: state.word,
     phonetic: state.phonetic,
+    respelling: state.respelling,
     audio: state.audio,
     sentence: state.sentence,
   });
@@ -374,37 +458,49 @@ function finishLearning(withSpeech) {
   showScreen('done');
 }
 
-$('btn-again').addEventListener('click', () => {
-  $('word-input').value = '';
-  $('word-feedback').innerHTML = '';
-  $('word-card').classList.add('hidden');
-  showScreen('word');
-});
+$('btn-again').addEventListener('click', goHome);
 
 // ===== 單字本 =====
 
 $('btn-wordbook').addEventListener('click', () => {
+  $('book-search').value = '';
   renderWordbook();
   showScreen('book');
 });
 
-$('btn-book-close').addEventListener('click', () => showScreen('word'));
+$('btn-book-close').addEventListener('click', goHome);
+$('book-search').addEventListener('input', () => renderWordbook($('book-search').value));
 
-function renderWordbook() {
+function formatDate(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function renderWordbook(filter = '') {
   const listEl = $('book-list');
-  const words = getWords();
+  const q = filter.trim().toLowerCase();
+  // 依學習日期新 → 舊排序；有搜尋字時比對單字與句子
+  const words = getWords()
+    .slice()
+    .sort((a, b) => new Date(b.learnedAt || 0) - new Date(a.learnedAt || 0))
+    .filter((w) => !q || w.word.toLowerCase().includes(q) || (w.sentence || '').toLowerCase().includes(q));
+
   if (!words.length) {
-    listEl.innerHTML = '<p class="book-empty">還沒有學過的單字，快去學第一個吧！🌱</p>';
+    listEl.innerHTML = q
+      ? `<p class="book-empty">找不到「${escapeHtml(filter)}」，換個字搜搜看？🔍</p>`
+      : '<p class="book-empty">還沒有學過的單字，快去學第一個吧！🌱</p>';
     return;
   }
   listEl.innerHTML = words.map((w) => `
     <div class="book-item" data-word="${escapeHtml(w.word)}">
       <div class="book-main">
-        <div class="book-word">${escapeHtml(w.word)} <small>${escapeHtml(w.phonetic || '')}</small></div>
+        <div class="book-word">${escapeHtml(w.word)} <small>${escapeHtml(w.respelling ? `[${w.respelling}]` : (w.phonetic || ''))}</small></div>
         <div class="book-sentence">${escapeHtml(w.sentence || '')}</div>
+        <div class="book-date">📅 ${formatDate(w.learnedAt)}${w.times > 1 ? ` · 練過 ${w.times} 次` : ''}</div>
       </div>
       <div class="book-actions">
         <button class="icon-btn book-play" title="聽發音" type="button">🔊</button>
+        <button class="icon-btn book-practice" title="再練一次" type="button">✏️</button>
         <button class="icon-btn book-delete" title="刪除" type="button">🗑️</button>
       </div>
     </div>`).join('');
@@ -413,17 +509,127 @@ function renderWordbook() {
     const word = item.dataset.word;
     const record = words.find((w) => w.word === word);
     item.querySelector('.book-play').addEventListener('click', () => playWordAudio(word, record?.audio));
+    item.querySelector('.book-practice').addEventListener('click', () => practiceAgain(record));
     item.querySelector('.book-delete').addEventListener('click', () => {
       removeWord(word);
-      renderWordbook();
+      renderWordbook($('book-search').value);
     });
   });
 }
+
+// 一鍵重練：直接帶著這個字進造句階段
+async function practiceAgain(record) {
+  state.word = record.word;
+  state.phonetic = record.phonetic || '';
+  state.respelling = record.respelling || '';
+  state.audio = record.audio || '';
+  const aiInfo = await fetchWordInfoAI(record.word); // 有快取，AI 模式下幾乎即時
+  state.examples = aiInfo?.examples?.length ? aiInfo.examples : templateExamples('', record.word);
+  if (aiInfo?.respelling) state.respelling = aiInfo.respelling;
+  enterSentenceStage();
+}
+
+// ===== 複習測驗「考考我」=====
+
+const quiz = { queue: [], index: 0, correct: 0, attempts: 0 };
+
+$('btn-quiz').addEventListener('click', () => {
+  const words = getWords();
+  if (words.length < 3) {
+    $('book-list').insertAdjacentHTML('afterbegin',
+      card('hint', '單字還不夠多', '<p>先學滿 3 個單字，再來挑戰「考考我」吧！💪</p>'));
+    return;
+  }
+  // 隨機抽最多 5 題
+  quiz.queue = words.slice().sort(() => Math.random() - 0.5).slice(0, 5);
+  quiz.index = 0;
+  quiz.correct = 0;
+  showScreen('quiz');
+  nextQuizQuestion();
+});
+
+function currentQuizWord() {
+  return quiz.queue[quiz.index];
+}
+
+function nextQuizQuestion() {
+  quiz.attempts = 0;
+  $('quiz-progress').textContent = `第 ${quiz.index + 1} / ${quiz.queue.length} 題`;
+  $('quiz-input').value = '';
+  $('quiz-input').disabled = false;
+  $('quiz-feedback').innerHTML = '';
+  $('quiz-input').focus();
+  const w = currentQuizWord();
+  setTimeout(() => playWordAudio(w.word, w.audio), 400);
+}
+
+$('btn-quiz-play').addEventListener('click', () => {
+  const w = currentQuizWord();
+  if (w) playWordAudio(w.word, w.audio);
+});
+
+$('quiz-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const w = currentQuizWord();
+  if (!w) return;
+  const answer = $('quiz-input').value.trim().toLowerCase();
+  if (!answer) return;
+
+  if (answer === w.word.toLowerCase()) {
+    quiz.correct += 1;
+    addStar();
+    refreshStars();
+    $('quiz-feedback').innerHTML = card('ok', '答對了！+1 ⭐', `<p>${escapeHtml(w.word)}，很棒！</p>`);
+    advanceQuiz();
+  } else if (quiz.attempts === 0) {
+    quiz.attempts = 1;
+    $('quiz-feedback').innerHTML = card('hint', '再想想！',
+      `<p>提示：這個字有 ${w.word.length} 個字母，開頭是「${escapeHtml(w.word[0])}」。再聽一次試試看！</p>`);
+    playWordAudio(w.word, w.audio);
+  } else {
+    $('quiz-feedback').innerHTML = card('error', '沒關係，看一下正確答案',
+      `<p>正確拼法是 <strong>${escapeHtml(w.word)}</strong>，下次一定行！</p>`);
+    advanceQuiz();
+  }
+});
+
+function advanceQuiz() {
+  $('quiz-input').disabled = true;
+  setTimeout(() => {
+    quiz.index += 1;
+    if (quiz.index < quiz.queue.length) {
+      nextQuizQuestion();
+    } else {
+      finishQuiz();
+    }
+  }, 1600);
+}
+
+function finishQuiz() {
+  $('quiz-progress').textContent = '';
+  $('quiz-input').disabled = true;
+  const total = quiz.queue.length;
+  const praise = quiz.correct === total ? '全對！你太厲害了！🏆'
+    : quiz.correct >= total / 2 ? '表現不錯，繼續加油！🌟'
+    : '多練幾次就會更熟囉！💪';
+  $('quiz-feedback').innerHTML = card('ok', `測驗結束：${quiz.correct} / ${total} 題答對`,
+    `<p>${praise}</p>
+     <div class="suggestion-chips">
+       <button id="btn-quiz-again" class="chip" type="button">🔁 再來一回合</button>
+     </div>`);
+  document.getElementById('btn-quiz-again').addEventListener('click', () => $('btn-quiz').click());
+}
+
+$('btn-quiz-exit').addEventListener('click', () => {
+  renderWordbook($('book-search').value);
+  showScreen('book');
+});
 
 // ===== 啟動 =====
 
 refreshStars();
 renderMode();
+renderDailyBar();
 showScreen('word');
 if (!ttsSupported) {
   $('word-feedback').innerHTML = card('hint', '提醒', '<p>這個瀏覽器不支援語音朗讀，建議用 Chrome 或 Safari 開啟。</p>');

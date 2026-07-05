@@ -15,10 +15,10 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
+    <button id="btn-home" class="brand" type="button" title="回首頁">
       <span class="brand-emoji">🐣</span>
       <span class="brand-name">單字小夥伴</span>
-    </div>
+    </button>
     <div class="topbar-right">
       <span id="star-count" class="star-count" title="收集到的星星">⭐ 0</span>
       <button id="btn-wordbook" class="btn-chip" type="button">📖 我的單字本</button>
@@ -40,6 +40,7 @@
         <button id="mode-ai" class="mode-btn" type="button" data-mode="ai">✨ AI 模式</button>
       </div>
       <p id="mode-hint" class="mode-hint"></p>
+      <div id="daily-bar" class="daily-bar"></div>
       <h1 class="screen-title">今天想學什麼單字？🌱</h1>
       <form id="word-form" class="input-row" autocomplete="off">
         <input id="word-input" class="input-big" type="text" inputmode="latin"
@@ -53,6 +54,13 @@
     <!-- 階段 2：造句 -->
     <section id="screen-sentence" class="screen">
       <h1 class="screen-title">用「<span id="sentence-word"></span>」造一個句子吧！✏️</h1>
+      <div id="examples-box" class="examples-box hidden">
+        <div class="examples-head">
+          <span>💡 例句參考</span>
+          <button id="btn-toggle-examples" class="btn-link btn-link-tight" type="button">隱藏例句</button>
+        </div>
+        <ul id="examples-list" class="examples-list"></ul>
+      </div>
       <div class="input-col">
         <textarea id="sentence-input" class="input-big textarea" rows="3"
                   placeholder="例如：I eat an apple every day." autocapitalize="sentences" spellcheck="false"></textarea>
@@ -90,8 +98,30 @@
     <!-- 單字本 -->
     <section id="screen-book" class="screen">
       <h1 class="screen-title">我的單字本 📖</h1>
+      <div class="book-toolbar">
+        <input id="book-search" class="input-big book-search" type="search"
+               placeholder="🔍 搜尋學過的單字…" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button id="btn-quiz" class="btn btn-primary" type="button">🎯 考考我</button>
+      </div>
       <div id="book-list" class="book-list"></div>
       <button id="btn-book-close" class="btn btn-secondary" type="button">回去學單字</button>
+    </section>
+
+    <!-- 複習測驗 -->
+    <section id="screen-quiz" class="screen">
+      <h1 class="screen-title">考考我 🎯</h1>
+      <p id="quiz-progress" class="hint"></p>
+      <div class="quiz-box">
+        <p class="quiz-prompt">仔細聽，然後拼出這個單字：</p>
+        <button id="btn-quiz-play" class="btn btn-secondary" type="button">🔊 再聽一次</button>
+        <form id="quiz-form" class="input-row" autocomplete="off">
+          <input id="quiz-input" class="input-big" type="text" inputmode="latin"
+                 placeholder="把聽到的單字拼出來" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+          <button class="btn btn-primary" type="submit">好了！</button>
+        </form>
+        <div id="quiz-feedback" class="feedback" aria-live="polite"></div>
+      </div>
+      <button id="btn-quiz-exit" class="btn-link" type="button">← 回單字本</button>
     </section>
   </main>
 
