@@ -1,0 +1,15 @@
+{
+  "name": "單字小夥伴 Word Buddy",
+  "short_name": "單字小夥伴",
+  "description": "學單字、練造句、說英文的小幫手",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f3efff",
+  "theme_color": "#7c5cff",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

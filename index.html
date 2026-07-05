@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>單字小夥伴 Word Buddy</title>
+  <meta name="description" content="學單字、練造句、說英文的小幫手">
+  <meta name="theme-color" content="#7c5cff">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-emoji">🐣</span>
+      <span class="brand-name">單字小夥伴</span>
+    </div>
+    <div class="topbar-right">
+      <span id="star-count" class="star-count" title="收集到的星星">⭐ 0</span>
+      <button id="btn-wordbook" class="btn-chip" type="button">📖 我的單字本</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 進度指示 -->
+    <ol id="steps" class="steps" aria-label="學習進度">
+      <li class="step is-active" data-step="word">1. 學單字</li>
+      <li class="step" data-step="sentence">2. 造句子</li>
+      <li class="step" data-step="speak">3. 練發音</li>
+    </ol>
+
+    <!-- 階段 1：學單字 -->
+    <section id="screen-word" class="screen is-active">
+      <h1 class="screen-title">今天想學什麼單字？🌱</h1>
+      <form id="word-form" class="input-row" autocomplete="off">
+        <input id="word-input" class="input-big" type="text" inputmode="latin"
+               placeholder="輸入一個英文單字，例如 apple" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+        <button id="word-submit" class="btn btn-primary" type="submit">查查看</button>
+      </form>
+      <div id="word-feedback" class="feedback" aria-live="polite"></div>
+      <div id="word-card" class="word-card hidden"></div>
+    </section>
+
+    <!-- 階段 2：造句 -->
+    <section id="screen-sentence" class="screen">
+      <h1 class="screen-title">用「<span id="sentence-word"></span>」造一個句子吧！✏️</h1>
+      <div class="input-col">
+        <textarea id="sentence-input" class="input-big textarea" rows="3"
+                  placeholder="例如：I eat an apple every day." autocapitalize="sentences" spellcheck="false"></textarea>
+        <button id="sentence-submit" class="btn btn-primary" type="button">檢查句子</button>
+      </div>
+      <div id="sentence-feedback" class="feedback" aria-live="polite"></div>
+      <button id="btn-back-word" class="btn-link" type="button">← 換一個單字</button>
+    </section>
+
+    <!-- 階段 3：練發音 -->
+    <section id="screen-speak" class="screen">
+      <h1 class="screen-title">大聲唸出你的句子！🎤</h1>
+      <p class="hint">先聽一次標準讀音，再按麥克風唸唸看。唸錯的字會變紅色，點紅色的字可以單獨再聽一次。</p>
+      <div id="speak-sentence" class="speak-sentence" aria-live="polite"></div>
+      <div class="speak-controls">
+        <button id="btn-play-standard" class="btn btn-secondary" type="button">🔊 聽標準讀音</button>
+        <button id="btn-record" class="btn btn-mic" type="button">🎤 換我唸</button>
+      </div>
+      <div id="speak-feedback" class="feedback" aria-live="polite"></div>
+      <div class="speak-footer">
+        <button id="btn-back-sentence" class="btn-link" type="button">← 修改句子</button>
+        <button id="btn-skip-speak" class="btn-link" type="button">跳過發音練習 →</button>
+      </div>
+    </section>
+
+    <!-- 過關畫面 -->
+    <section id="screen-done" class="screen screen-done">
+      <div class="confetti" aria-hidden="true"></div>
+      <div class="done-emoji">🏆</div>
+      <h1 class="screen-title" id="done-title">太棒了！</h1>
+      <p id="done-message" class="done-message"></p>
+      <button id="btn-again" class="btn btn-primary" type="button">再學一個單字 🚀</button>
+    </section>
+
+    <!-- 單字本 -->
+    <section id="screen-book" class="screen">
+      <h1 class="screen-title">我的單字本 📖</h1>
+      <div id="book-list" class="book-list"></div>
+      <button id="btn-book-close" class="btn btn-secondary" type="button">回去學單字</button>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
