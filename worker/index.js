@@ -142,11 +142,16 @@ async function tts(request, env, ctx, cors) {
         'Ocp-Apim-Subscription-Key': env.AZURE_SPEECH_KEY,
         'Content-Type': 'application/ssml+xml',
         'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
+        'User-Agent': 'word-buddy', // Azure TTS 必填標頭，Worker fetch 預設不送
+
       },
       body: ssml,
     }
   );
-  if (!res.ok) return json({ error: `azure ${res.status}` }, 502, cors);
+  if (!res.ok) {
+    const detail = await res.text();
+    return json({ error: `azure ${res.status}`, detail: detail.slice(0, 300) }, 502, cors);
+  }
 
   const audio = await res.arrayBuffer();
   const response = new Response(audio, {
