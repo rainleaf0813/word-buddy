@@ -1,17 +1,18 @@
 // 單字查詢與拼字建議（Free Dictionary API + Datamuse，皆免費無需 key）
 
+// 中文詞性 + 英文縮寫（跟學校講義的 adj. / adv. / n. / v. 標法一致）
 const POS_ZH = {
-  noun: '名詞',
-  verb: '動詞',
-  adjective: '形容詞',
-  adverb: '副詞',
-  pronoun: '代名詞',
-  preposition: '介系詞',
-  conjunction: '連接詞',
-  interjection: '感嘆詞',
-  exclamation: '感嘆詞',
-  determiner: '限定詞',
-  numeral: '數詞',
+  noun: '名詞 n.',
+  verb: '動詞 v.',
+  adjective: '形容詞 adj.',
+  adverb: '副詞 adv.',
+  pronoun: '代名詞 pron.',
+  preposition: '介系詞 prep.',
+  conjunction: '連接詞 conj.',
+  interjection: '感嘆詞 int.',
+  exclamation: '感嘆詞 int.',
+  determiner: '限定詞 det.',
+  numeral: '數詞 num.',
 };
 
 export function posToZh(pos) {

@@ -61,7 +61,7 @@ export function addStar() {
   return data.stars;
 }
 
-export const DAILY_GOAL = 3;
+export const DAILY_GOAL = 5;
 
 export function getDailyProgress() {
   return { count: load().daily[todayKey()] || 0, goal: DAILY_GOAL };

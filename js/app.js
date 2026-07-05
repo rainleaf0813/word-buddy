@@ -231,9 +231,15 @@ function renderExamples() {
     box.classList.add('hidden');
     return;
   }
-  list.innerHTML = state.examples.slice(0, 2).map((ex) =>
-    `<li>${escapeHtml(ex.en)}${ex.zh ? `<div class="ex-zh">${escapeHtml(ex.zh)}</div>` : ''}</li>`
+  list.innerHTML = state.examples.slice(0, 2).map((ex, i) =>
+    `<li class="ex-item">
+       <button class="icon-btn ex-play" data-i="${i}" title="朗讀例句" type="button">🔊</button>
+       <div class="ex-text">${escapeHtml(ex.en)}${ex.zh ? `<div class="ex-zh">${escapeHtml(ex.zh)}</div>` : ''}</div>
+     </li>`
   ).join('');
+  list.querySelectorAll('.ex-play').forEach((btn) => {
+    btn.addEventListener('click', () => speak(state.examples[Number(btn.dataset.i)].en, { rate: 0.85 }));
+  });
   list.classList.remove('hidden');
   $('btn-toggle-examples').textContent = '隱藏例句';
   box.classList.remove('hidden');
@@ -473,7 +479,7 @@ $('book-search').addEventListener('input', () => renderWordbook($('book-search')
 
 function formatDate(iso) {
   const d = new Date(iso);
-  return isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()}`;
+  return isNaN(d) ? '更早之前' : `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 function renderWordbook(filter = '') {
@@ -491,18 +497,34 @@ function renderWordbook(filter = '') {
       : '<p class="book-empty">還沒有學過的單字，快去學第一個吧！🌱</p>';
     return;
   }
-  listEl.innerHTML = words.map((w) => `
+  // 依日期分組：日期標題在上，底下列出當天學的所有單字
+  const groups = [];
+  for (const w of words) {
+    const label = formatDate(w.learnedAt);
+    if (!groups.length || groups[groups.length - 1].label !== label) {
+      groups.push({ label, items: [] });
+    }
+    groups[groups.length - 1].items.push(w);
+  }
+
+  const itemHtml = (w) => `
     <div class="book-item" data-word="${escapeHtml(w.word)}">
       <div class="book-main">
         <div class="book-word">${escapeHtml(w.word)} <small>${escapeHtml(w.respelling ? `[${w.respelling}]` : (w.phonetic || ''))}</small></div>
         <div class="book-sentence">${escapeHtml(w.sentence || '')}</div>
-        <div class="book-date">📅 ${formatDate(w.learnedAt)}${w.times > 1 ? ` · 練過 ${w.times} 次` : ''}</div>
+        ${w.times > 1 ? `<div class="book-date">練過 ${w.times} 次</div>` : ''}
       </div>
       <div class="book-actions">
         <button class="icon-btn book-play" title="聽發音" type="button">🔊</button>
         <button class="icon-btn book-practice" title="再練一次" type="button">✏️</button>
         <button class="icon-btn book-delete" title="刪除" type="button">🗑️</button>
       </div>
+    </div>`;
+
+  listEl.innerHTML = groups.map((g) => `
+    <div class="book-group">
+      <div class="book-group-date">📅 ${escapeHtml(g.label)}<span class="book-group-count">${g.items.length} 個單字</span></div>
+      ${g.items.map(itemHtml).join('')}
     </div>`).join('');
 
   listEl.querySelectorAll('.book-item').forEach((item) => {

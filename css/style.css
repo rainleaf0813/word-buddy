@@ -178,7 +178,15 @@ main {
 .btn-link-tight { margin-top: 0; padding: 2px 4px; }
 
 .examples-list { list-style: none; padding: 0; margin: 8px 0 0; }
-.examples-list li { margin: 6px 0; font-size: 1rem; }
+.examples-list .ex-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0;
+  font-size: 1rem;
+}
+.examples-list .ex-play { flex-shrink: 0; padding: 4px 8px; }
+.examples-list .ex-text { flex: 1; }
 .examples-list .ex-zh { color: var(--ink-soft); font-size: 0.85rem; }
 .examples-list.hidden { display: none; }
 
@@ -186,6 +194,26 @@ main {
 .book-toolbar { display: flex; gap: 10px; margin-bottom: 14px; }
 .book-search { flex: 1; font-size: 1rem; padding: 10px 14px; }
 .book-item .book-date { color: var(--ink-soft); font-size: 0.8rem; }
+
+.book-group { display: flex; flex-direction: column; gap: 12px; }
+.book-group + .book-group { margin-top: 18px; }
+.book-group-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--purple-dark);
+  padding: 0 4px;
+}
+.book-group-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
 
 .quiz-box {
   background: var(--card);
