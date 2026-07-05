@@ -35,6 +35,11 @@
 
     <!-- 階段 1：學單字 -->
     <section id="screen-word" class="screen is-active">
+      <div class="mode-switch" role="group" aria-label="檢查引擎模式">
+        <button id="mode-free" class="mode-btn" type="button" data-mode="free">🆓 免費模式</button>
+        <button id="mode-ai" class="mode-btn" type="button" data-mode="ai">✨ AI 模式</button>
+      </div>
+      <p id="mode-hint" class="mode-hint"></p>
       <h1 class="screen-title">今天想學什麼單字？🌱</h1>
       <form id="word-form" class="input-row" autocomplete="off">
         <input id="word-input" class="input-big" type="text" inputmode="latin"

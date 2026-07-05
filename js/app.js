@@ -1,9 +1,10 @@
 // 主流程：學單字 → 造句 → 練發音
 
 import { lookupWord, spellingSuggestions, posToZh } from './dictionary.js';
-import { checkGrammar, localChecks } from './grammar.js';
+import { checkGrammar, checkGrammarAI, localChecks } from './grammar.js';
 import { speak, listen, comparePronunciation, sttSupported, ttsSupported } from './speech.js';
-import { getWords, getStars, recordLearned, removeWord } from './storage.js';
+import { getWords, getStars, recordLearned, removeWord, getMode, setMode } from './storage.js';
+import { WORKER_URL } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -50,6 +51,33 @@ function escapeHtml(s) {
 function refreshStars() {
   $('star-count').textContent = `⭐ ${getStars()}`;
 }
+
+// ===== 模式切換（免費 / AI）=====
+
+function aiAvailable() {
+  return Boolean(WORKER_URL);
+}
+
+function renderMode() {
+  const mode = getMode();
+  $('mode-free').classList.toggle('is-active', mode === 'free');
+  $('mode-ai').classList.toggle('is-active', mode === 'ai');
+  $('mode-hint').textContent =
+    mode === 'ai'
+      ? '✨ AI 模式：Claude 檢查文法、真人感朗讀'
+      : '🆓 免費模式：基本檢查，完全免費';
+}
+
+document.querySelectorAll('.mode-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.mode === 'ai' && !aiAvailable()) {
+      $('mode-hint').textContent = 'AI 模式還沒設定完成（需要爸爸先架好金鑰服務），先用免費模式囉！';
+      return;
+    }
+    setMode(btn.dataset.mode);
+    renderMode();
+  });
+});
 
 // ===== 階段 1：學單字 =====
 
@@ -106,7 +134,7 @@ $('word-form').addEventListener('submit', async (e) => {
   }
 });
 
-function showWordCard({ word, phonetic, audio, meanings }) {
+function showWordCard({ word, phonetic, audio, meanings, wordZh }) {
   state.word = word;
   state.phonetic = phonetic;
   state.audio = audio;
@@ -115,8 +143,9 @@ function showWordCard({ word, phonetic, audio, meanings }) {
   cardEl.innerHTML = `
     <div class="word-text">${escapeHtml(word)}</div>
     <div class="word-phonetic">${escapeHtml(phonetic || '')}</div>
+    ${wordZh ? `<div class="word-zh">${escapeHtml(wordZh)}</div>` : ''}
     <ul class="word-meanings">
-      ${meanings.map((m) => `<li><span class="pos-tag">${escapeHtml(posToZh(m.partOfSpeech))}</span>${escapeHtml(m.definition)}</li>`).join('')}
+      ${meanings.map((m) => `<li><span class="pos-tag">${escapeHtml(posToZh(m.partOfSpeech))}</span>${escapeHtml(m.definition)}${m.zh ? `<div class="def-zh">${escapeHtml(m.zh)}</div>` : ''}</li>`).join('')}
     </ul>
     <div class="word-actions">
       <button id="btn-word-audio" class="btn btn-secondary" type="button">🔊 聽發音</button>
@@ -160,7 +189,21 @@ $('sentence-submit').addEventListener('click', async () => {
   feedback.innerHTML = card('hint', '檢查中…', '<p>幫你看看文法 🔍</p>');
 
   try {
-    const { errors, hints } = await checkGrammar(sentence);
+    // 依模式選擇引擎：AI 模式失敗自動退回免費引擎
+    let result = null;
+    let usedFallback = false;
+    if (getMode() === 'ai' && aiAvailable()) {
+      try {
+        result = await checkGrammarAI(sentence, state.word);
+      } catch {
+        usedFallback = true;
+      }
+    }
+    if (!result) result = await checkGrammar(sentence);
+    const { errors, hints = [], corrected = '' } = result;
+    const fallbackNote = usedFallback
+      ? card('hint', 'AI 引擎暫時連不上', '<p>這次先用免費引擎幫你檢查。</p>')
+      : '';
 
     if (errors.length === 0) {
       state.sentence = sentence;
@@ -168,19 +211,31 @@ $('sentence-submit').addEventListener('click', async () => {
         ? card('hint', '小建議（不改也可以）', hints.map((h) => `<p><span class="error-snippet">${escapeHtml(h.bad)}</span> ${escapeHtml(h.zh)}${h.replacements.length ? `　建議：${escapeHtml(h.replacements.join('、'))}` : ''}</p>`).join(''))
         : '';
       feedback.innerHTML =
-        card('ok', '句子沒問題，太棒了！🎉', '<p>接下來大聲唸出你的句子吧！</p>') + hintHtml;
+        card('ok', '句子沒問題，太棒了！🎉', '<p>接下來大聲唸出你的句子吧！</p>') + hintHtml + fallbackNote;
       setTimeout(() => enterSpeakStage(), 900);
     } else {
-      feedback.innerHTML = errors.map((err) => card(
+      const correctedHtml = corrected && corrected.trim() !== sentence
+        ? `<div class="suggestion-chips"><button id="chip-corrected" class="chip" type="button">🪄 幫我改好整句</button></div>`
+        : '';
+      feedback.innerHTML = fallbackNote + errors.map((err) => card(
         'error',
         `「${escapeHtml(err.bad)}」這裡怪怪的`,
         `<p>${escapeHtml(err.zh)}</p>
          ${err.replacements.length ? `<div class="suggestion-chips">${err.replacements.map((r) => `<button class="chip" data-offset="${err.offset}" data-length="${err.length}" data-to="${escapeHtml(r)}" type="button">改成 ${escapeHtml(r)}</button>`).join('')}</div>` : ''}
-         <p class="original-msg">${escapeHtml(err.original)}</p>`
-      )).join('');
+         ${err.original ? `<p class="original-msg">${escapeHtml(err.original)}</p>` : ''}`
+      )).join('') + correctedHtml;
+
+      // AI 給的完整正確句子：一鍵套用
+      const chipCorrected = document.getElementById('chip-corrected');
+      if (chipCorrected) {
+        chipCorrected.addEventListener('click', () => {
+          $('sentence-input').value = corrected.trim();
+          $('sentence-submit').click();
+        });
+      }
 
       // 點建議直接套用修改（用檢查時的位置精準取代，避免改到別的字）
-      feedback.querySelectorAll('.chip').forEach((chip) => {
+      feedback.querySelectorAll('.chip[data-to]').forEach((chip) => {
         chip.addEventListener('click', () => {
           const el = $('sentence-input');
           if (el.value.trim() !== sentence) return; // 句子已被手動改過，不能再用舊位置
@@ -368,6 +423,7 @@ function renderWordbook() {
 // ===== 啟動 =====
 
 refreshStars();
+renderMode();
 showScreen('word');
 if (!ttsSupported) {
   $('word-feedback').innerHTML = card('hint', '提醒', '<p>這個瀏覽器不支援語音朗讀，建議用 Chrome 或 Safari 開啟。</p>');

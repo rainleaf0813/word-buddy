@@ -1,0 +1,11 @@
+name = "word-buddy-api"
+main = "index.js"
+compatibility_date = "2026-07-01"
+
+# 部署步驟（在 worker/ 資料夾內執行）：
+#   npx wrangler login                       # 登入 Cloudflare（瀏覽器授權一次）
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put AZURE_SPEECH_KEY
+#   npx wrangler secret put AZURE_REGION     # 例如 eastasia
+#   npx wrangler deploy
+# 部署後把網址填入 ../js/config.js 的 WORKER_URL

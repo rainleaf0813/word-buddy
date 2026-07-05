@@ -1,4 +1,8 @@
-// 語音功能：TTS 朗讀、STT 辨識、逐字比對（全部使用瀏覽器內建能力）
+// 語音功能：TTS 朗讀、STT 辨識、逐字比對
+// 免費模式用瀏覽器內建語音；AI 模式的朗讀改走 Worker → Azure 神經語音（失敗自動退回內建）
+
+import { WORKER_URL } from './config.js';
+import { getMode } from './storage.js';
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -28,6 +32,14 @@ if (ttsSupported) {
 
 // 朗讀文字（rate < 1 = 放慢，適合小朋友跟讀）
 export function speak(text, { rate = 0.85 } = {}) {
+  if (getMode() === 'ai' && WORKER_URL) {
+    speakViaWorker(text, rate).catch(() => speakLocal(text, rate));
+  } else {
+    speakLocal(text, rate);
+  }
+}
+
+function speakLocal(text, rate) {
   if (!ttsSupported) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
@@ -36,6 +48,25 @@ export function speak(text, { rate = 0.85 } = {}) {
   const voice = pickVoice();
   if (voice) u.voice = voice;
   speechSynthesis.speak(u);
+}
+
+let currentAudio = null;
+
+// Azure 神經語音（經 Worker），回傳 mp3 播放
+async function speakViaWorker(text, rate) {
+  const res = await fetch(`${WORKER_URL}/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, rate }),
+  });
+  if (!res.ok) throw new Error(`tts ${res.status}`);
+  const blob = await res.blob();
+  if (currentAudio) currentAudio.pause();
+  speechSynthesis.cancel();
+  const url = URL.createObjectURL(blob);
+  currentAudio = new Audio(url);
+  currentAudio.onended = () => URL.revokeObjectURL(url);
+  await currentAudio.play();
 }
 
 // 聽一次使用者說話，回傳候選文字陣列（依信心度排序）

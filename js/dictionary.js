@@ -18,6 +18,41 @@ export function posToZh(pos) {
   return POS_ZH[pos] || pos;
 }
 
+// ===== 免費翻譯（Google 端點優先，MyMemory 備援，都失敗回傳空字串）=====
+
+async function googleTranslate(text) {
+  const res = await fetch(
+    `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&q=${encodeURIComponent(text)}`
+  );
+  if (!res.ok) throw new Error('google translate failed');
+  const data = await res.json();
+  return (data[0] || []).map((seg) => seg[0]).join('');
+}
+
+async function myMemoryTranslate(text) {
+  const res = await fetch(
+    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh-TW`
+  );
+  if (!res.ok) throw new Error('mymemory failed');
+  const data = await res.json();
+  const t = data?.responseData?.translatedText;
+  if (!t) throw new Error('mymemory empty');
+  return t;
+}
+
+export async function translateToZh(text) {
+  if (!text) return '';
+  try {
+    return await googleTranslate(text);
+  } catch {
+    try {
+      return await myMemoryTranslate(text);
+    } catch {
+      return '';
+    }
+  }
+}
+
 // 查單字：查得到回傳單字卡資料，查不到回傳 { found: false }
 export async function lookupWord(word) {
   const res = await fetch(
@@ -50,7 +85,14 @@ export async function lookupWord(word) {
     definition: m.definitions?.[0]?.definition || '',
   }));
 
-  return { found: true, word: entry.word, phonetic, audio, meanings };
+  // 補上中文：單字本身 + 每條英文定義（並行翻譯，失敗就留空只顯示英文）
+  const [wordZh, ...defsZh] = await Promise.all([
+    translateToZh(entry.word),
+    ...meanings.map((m) => translateToZh(m.definition)),
+  ]);
+  meanings.forEach((m, i) => { m.zh = defsZh[i] || ''; });
+
+  return { found: true, word: entry.word, phonetic, audio, meanings, wordZh };
 }
 
 // 拼字建議：Datamuse 的 sp= 模糊比對，回傳最多 3 個候選字

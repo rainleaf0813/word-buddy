@@ -1,4 +1,6 @@
-// 文法檢查（LanguageTool 免費公開 API）+ 錯誤訊息中文化
+// 文法檢查：免費引擎（LanguageTool + 中文化）與 AI 引擎（Claude，經 Cloudflare Worker）
+
+import { WORKER_URL } from './config.js';
 
 // 常見規則 → 小朋友看得懂的中文解說
 const RULE_ZH = {
@@ -96,6 +98,78 @@ export async function checkGrammar(text) {
   };
 }
 
+// ===== 本地文法規則：不規則複數 + 第三人稱單數動詞 =====
+// LanguageTool 對句首大寫的 People/Children 會誤判成專有名詞而漏抓（如 People likes），
+// 所以用清單比對自己攔。動詞用「清單」而非 -s 字尾規則，避免 always/sometimes 誤報。
+
+const IRREGULAR_PLURALS = new Set([
+  'people', 'children', 'men', 'women', 'police',
+  'feet', 'teeth', 'mice', 'geese', 'oxen',
+]);
+
+const SINGULAR_VERBS = new Set([
+  'is', 'was', 'has', 'does', 'goes', 'likes', 'loves', 'eats', 'wants',
+  'needs', 'plays', 'runs', 'makes', 'gets', 'says', 'comes', 'lives',
+  'works', 'looks', 'gives', 'takes', 'thinks', 'knows', 'feels', 'helps',
+  'keeps', 'puts', 'reads', 'sees', 'sleeps', 'speaks', 'swims', 'walks',
+  'watches', 'writes', 'studies', 'tries', 'flies', 'carries', 'teaches',
+  'catches', 'brushes', 'washes', 'misses', 'dances', 'sings', 'jumps',
+  'drinks', 'rides', 'drives', 'opens', 'closes', 'cleans', 'cooks',
+  'cries', 'laughs', 'listens', 'learns', 'visits', 'buys', 'sells',
+  'sits', 'stands', 'stops', 'starts', 'talks', 'tells', 'turns', 'uses',
+  'waits', 'wears', 'wins', 'wishes', 'enjoys', 'hates', 'asks',
+  'answers', 'draws', 'smiles', 'stays', 'holds', 'hears', 'finds',
+  'brings', 'sends', 'meets', 'calls', 'moves', 'flies', 'grows',
+]);
+
+// 單數動詞 → 複數（原形）建議
+function pluralVerbForm(verb) {
+  const special = { is: 'are', was: 'were', has: 'have', does: 'do', goes: 'go' };
+  if (special[verb]) return special[verb];
+  if (verb.endsWith('ies')) return `${verb.slice(0, -3)}y`;
+  if (/(ches|shes|sses|xes|zes)$/.test(verb)) return verb.slice(0, -2);
+  return verb.slice(0, -1);
+}
+
+function pluralAgreementCheck(sentence) {
+  const problems = [];
+  const tokens = sentence.toLowerCase().match(/[a-z']+/g) || [];
+  for (let i = 0; i < tokens.length - 1; i++) {
+    if (IRREGULAR_PLURALS.has(tokens[i]) && SINGULAR_VERBS.has(tokens[i + 1])) {
+      problems.push(
+        `「${tokens[i]} ${tokens[i + 1]}」：${tokens[i]} 本身就是複數名詞，` +
+        `後面的動詞要用複數形（不加 s），要改成「${tokens[i]} ${pluralVerbForm(tokens[i + 1])}」。`
+      );
+    }
+  }
+  return problems;
+}
+
+// AI 文法檢查：走 Cloudflare Worker → Claude。回傳格式與 checkGrammar 相同，
+// 另附 corrected（AI 給的完整正確句子，供一鍵修正）。
+export async function checkGrammarAI(sentence, word) {
+  const res = await fetch(`${WORKER_URL}/grammar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sentence, word }),
+  });
+  if (!res.ok) throw new Error(`AI 文法服務錯誤（${res.status}）`);
+  const data = await res.json();
+
+  const errors = (data.errors || []).map((e) => {
+    const offset = sentence.indexOf(e.bad);
+    return {
+      bad: e.bad,
+      offset,
+      length: e.bad.length,
+      zh: e.zh,
+      original: '',
+      replacements: offset >= 0 ? (e.suggestions || []).slice(0, 3) : [],
+    };
+  });
+  return { errors, hints: [], corrected: data.corrected || '' };
+}
+
 // 本地快速檢查（不耗 API）：回傳中文提醒訊息陣列，空陣列 = 通過
 export function localChecks(sentence, targetWord) {
   const problems = [];
@@ -117,6 +191,7 @@ export function localChecks(sentence, targetWord) {
   if (!containsWord(trimmed, targetWord)) {
     problems.push(`句子裡要用到今天學的單字「${targetWord}」喔。`);
   }
+  problems.push(...pluralAgreementCheck(trimmed));
   return problems;
 }
 

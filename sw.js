@@ -6,6 +6,7 @@ const ASSETS = [
   'index.html',
   'css/style.css',
   'js/app.js',
+  'js/config.js',
   'js/dictionary.js',
   'js/grammar.js',
   'js/speech.js',

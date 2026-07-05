@@ -42,6 +42,17 @@ export function recordLearned({ word, phonetic, audio, sentence }) {
   return data.stars;
 }
 
+// 引擎模式：'free'（免費）或 'ai'（Claude API + Azure 語音）
+export function getMode() {
+  return load().mode === 'ai' ? 'ai' : 'free';
+}
+
+export function setMode(mode) {
+  const data = load();
+  data.mode = mode === 'ai' ? 'ai' : 'free';
+  save(data);
+}
+
 export function removeWord(word) {
   const data = load();
   data.words = data.words.filter((w) => w.word !== word);
