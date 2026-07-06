@@ -52,6 +52,15 @@ function speakLocal(text, rate) {
 
 let currentAudio = null;
 
+// 停掉所有播放中的聲音（錄音前必呼叫：iOS 音訊通道還在播放模式時開麥克風會收不到音）
+export function stopSpeaking() {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  if (ttsSupported) speechSynthesis.cancel();
+}
+
 // Azure 神經語音（經 Worker），回傳 mp3 播放
 async function speakViaWorker(text, rate) {
   const res = await fetch(`${WORKER_URL}/tts`, {
@@ -67,6 +76,22 @@ async function speakViaWorker(text, rate) {
   currentAudio = new Audio(url);
   currentAudio.onended = () => URL.revokeObjectURL(url);
   await currentAudio.play();
+}
+
+// 麥克風暖機：主動要一次麥克風權限再馬上關掉
+// iOS 從桌面圖示開啟（standalone）時，權限不會被記住，且 SpeechRecognition
+// 自己不一定會跳出權限視窗而靜靜失敗；先走 getUserMedia 可以確保視窗跳出、通道打開
+let micWarmed = false;
+
+async function prewarmMic() {
+  if (micWarmed || !navigator.mediaDevices?.getUserMedia) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((t) => t.stop());
+    micWarmed = true;
+  } catch {
+    // 權限被拒就讓 SpeechRecognition 自己回報 not-allowed
+  }
 }
 
 // 聽一次使用者說話，回傳候選文字陣列（依信心度排序）
@@ -86,9 +111,22 @@ export function listen({ onResult, onError, onEnd }) {
   };
   rec.onerror = (event) => onError(event.error);
   rec.onend = () => onEnd();
-  rec.start();
 
-  return { stop: () => rec.stop() };
+  let started = false;
+  let cancelled = false;
+  prewarmMic().then(() => {
+    if (cancelled) return;
+    started = true;
+    rec.start();
+  });
+
+  return {
+    stop: () => {
+      cancelled = true;
+      if (started) rec.stop();
+      else onEnd(); // 還沒開始就取消：手動收尾，讓按鈕狀態復原
+    },
+  };
 }
 
 // ===== 逐字比對 =====

@@ -2,7 +2,7 @@
 
 import { lookupWord, spellingSuggestions, posToZh, templateExamples } from './dictionary.js';
 import { checkGrammar, checkGrammarAI, localChecks } from './grammar.js';
-import { speak, listen, comparePronunciation, sttSupported, ttsSupported } from './speech.js';
+import { speak, stopSpeaking, listen, comparePronunciation, sttSupported, ttsSupported } from './speech.js';
 import {
   getWords, getStars, recordLearned, removeWord, getMode, setMode, hasMode,
   addStar, getDailyProgress, getStreak,
@@ -255,6 +255,11 @@ $('btn-toggle-examples').addEventListener('click', () => {
 });
 
 function playWordAudio(word, audioUrl) {
+  // AI 模式一律用 Azure 神經語音（字典附的錄音檔是志願者錄的，品質不穩、常常糊糊的）
+  if (getMode() === 'ai' && aiAvailable()) {
+    speak(word, { rate: 0.8 });
+    return;
+  }
   if (audioUrl) {
     new Audio(audioUrl).play().catch(() => speak(word));
   } else {
@@ -303,8 +308,12 @@ $('sentence-submit').addEventListener('click', async () => {
         ? card('hint', '小建議（不改也可以）', hints.map((h) => `<p><span class="error-snippet">${escapeHtml(h.bad)}</span> ${escapeHtml(h.zh)}${h.replacements.length ? `　建議：${escapeHtml(h.replacements.join('、'))}` : ''}</p>`).join(''))
         : '';
       feedback.innerHTML =
-        card('ok', '句子沒問題，太棒了！🎉', '<p>接下來大聲唸出你的句子吧！</p>') + hintHtml + fallbackNote;
-      setTimeout(() => enterSpeakStage(), 900);
+        card('ok', '句子沒問題，太棒了！🎉',
+          `<p>準備好了就按下面的按鈕，練習大聲唸出你的句子！</p>
+           <div class="suggestion-chips">
+             <button id="btn-goto-speak" class="btn btn-primary" type="button">下一步：練發音 🎤</button>
+           </div>`) + hintHtml + fallbackNote;
+      document.getElementById('btn-goto-speak').addEventListener('click', enterSpeakStage);
     } else {
       const correctedHtml = corrected && corrected.trim() !== sentence
         ? `<div class="suggestion-chips"><button id="chip-corrected" class="chip" type="button">🪄 幫我改好整句</button></div>`
@@ -351,6 +360,11 @@ $('btn-back-word').addEventListener('click', () => showScreen('word'));
 
 let recorder = null;
 
+// 是否從桌面圖示開啟（standalone 模式）：麥克風權限每次都要重新允許
+const isStandalone =
+  window.matchMedia?.('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true;
+
 function enterSpeakStage() {
   renderSpeakSentence(null);
   $('speak-feedback').innerHTML = sttSupported
@@ -386,7 +400,7 @@ $('btn-record').addEventListener('click', () => {
     recorder.stop();
     return;
   }
-  speechSynthesis.cancel();
+  stopSpeaking(); // 停掉所有播放中的聲音，iOS 才能順利切到收音模式
   btn.classList.add('is-recording');
   btn.textContent = '🛑 我唸完了';
   $('speak-feedback').innerHTML = card('hint', '我在聽…', '<p>對著麥克風，慢慢唸出你的句子 🎧</p>');
@@ -400,19 +414,27 @@ $('btn-record').addEventListener('click', () => {
     onError: (code) => {
       gotResult = true;
       const msg = {
-        'not-allowed': '需要麥克風權限才能練發音。請在瀏覽器設定允許使用麥克風。',
+        'not-allowed': '需要麥克風權限才能練發音。請在跳出的視窗按「允許」。',
+        'service-not-allowed': '需要麥克風權限才能練發音。請在跳出的視窗按「允許」。',
         'no-speech': '沒有聽到聲音，再靠近麥克風一點、大聲一點試試看。',
         'audio-capture': '找不到麥克風，檢查一下設備。',
         'network': '語音辨識需要網路，檢查一下連線。',
       }[code] || `語音辨識出了點問題（${code}），再試一次。`;
-      $('speak-feedback').innerHTML = card('error', '咦？', `<p>${msg}</p>`);
+      // 桌面小 App 模式的麥克風權限不會被記住，失敗時多給一條路
+      const standaloneTip = isStandalone
+        ? '<p>💡 從桌面圖示開啟時，每次都要重新允許麥克風。如果一直失敗，把 App 往上滑關掉再重開，或改用 Safari 開啟練發音。</p>'
+        : '';
+      $('speak-feedback').innerHTML = card('error', '咦？', `<p>${msg}</p>${standaloneTip}`);
     },
     onEnd: () => {
       recorder = null;
       btn.classList.remove('is-recording');
       btn.textContent = '🎤 換我唸';
       if (!gotResult) {
-        $('speak-feedback').innerHTML = card('hint', '沒有聽清楚', '<p>再按一次麥克風，大聲唸出句子試試看。</p>');
+        const standaloneTip = isStandalone
+          ? '<p>💡 一直聽不到的話，把 App 往上滑關掉再重開，或改用 Safari 開啟練發音。</p>'
+          : '';
+        $('speak-feedback').innerHTML = card('hint', '沒有聽清楚', `<p>再按一次麥克風，大聲唸出句子試試看。</p>${standaloneTip}`);
       }
     },
   });
