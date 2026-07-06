@@ -80,27 +80,63 @@ async function speakViaWorker(text, rate) {
 
 // 聽一次使用者說話，回傳候選文字陣列（依信心度排序）
 // 回傳的 controller 有 stop() 可手動結束
+//
+// iOS 的 WebKit 語音辨識（Safari、以及 iOS 上所有瀏覽器共用的引擎）有個已知問題：
+// 非連續模式下，孩子唸到一半稍微停頓就常被誤判成「講完了」而提早結束，
+// 而且結束時往往不會觸發真正的「最終結果」事件，導致明明聽到聲音卻什麼都沒回傳。
+// 改用連續模式，改由使用者按「我唸完了」主動結束；過程中持續記住目前聽到的內容，
+// 即使沒等到正式的最終結果，結束時也用目前收到的內容當答案，不直接判定失敗。
 export function listen({ onResult, onError, onEnd }) {
   const rec = new SR();
   rec.lang = 'en-US';
-  rec.interimResults = false;
+  rec.interimResults = true;
   rec.maxAlternatives = 5;
-  rec.continuous = false;
+  rec.continuous = true;
 
-  rec.onresult = (event) => {
-    const alts = [];
-    const result = event.results[0];
-    for (let i = 0; i < result.length; i++) alts.push(result[i].transcript);
+  let lastAlternatives = [];
+  let finished = false;
+
+  const finish = (alts) => {
+    if (finished) return;
+    finished = true;
     onResult(alts);
   };
-  rec.onerror = (event) => onError(event.error);
-  rec.onend = () => onEnd();
 
-  // Safari 的語音辨識要求 start() 必須在使用者手勢當下「同步」呼叫，
-  // 中間不能有任何 await／非同步延遲，否則常常靜靜失敗（收不到任何結果）。
+  rec.onresult = (event) => {
+    const result = event.results[event.results.length - 1];
+    const alts = [];
+    for (let i = 0; i < result.length; i++) alts.push(result[i].transcript);
+    lastAlternatives = alts;
+    if (result.isFinal) {
+      finish(alts);
+      rec.stop();
+    }
+  };
+  rec.onerror = (event) => {
+    if (finished) return;
+    // iOS 常把「有講話但辨識沒信心」誤報成 no-speech；只要先前有收到內容就採用它
+    if (event.error === 'no-speech' && lastAlternatives.length) {
+      finish(lastAlternatives);
+      return;
+    }
+    onError(event.error);
+  };
+  rec.onend = () => {
+    if (!finished && lastAlternatives.length) finish(lastAlternatives);
+    clearTimeout(safetyTimer);
+    onEnd();
+  };
+
   rec.start();
+  // 連續模式理論上會一直聽，怕孩子忘記按「我唸完了」讓麥克風開一整天，設個上限
+  const safetyTimer = setTimeout(() => rec.stop(), 15000);
 
-  return { stop: () => rec.stop() };
+  return {
+    stop: () => {
+      clearTimeout(safetyTimer);
+      rec.stop();
+    },
+  };
 }
 
 // ===== 逐字比對 =====
