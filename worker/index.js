@@ -175,8 +175,10 @@ const WORD_SCHEMA = {
           en: {
             type: 'string',
             description:
-              '使用該單字的英文例句。嚴格限制：6-10 個英文單字；除目標單字外只能用最常見的基礎單字（CEFR A1-A2）；' +
-              '只用「主詞+動詞+受詞」等簡單句型，禁止關係子句、that/because 子句、被動語態、分詞構句。',
+              '使用該單字的英文例句，程度為國中一年級（13-14 歲，CEFR A2）。' +
+              '句子可以是 8-14 個英文單字；可以用 because/when/if/after/before/so 等連接詞銜接兩個子句，' +
+              '可以用現在式、過去式、未來式與常見助動詞；' +
+              '但避免罕見冷僻單字、關係子句（which/who）、被動語態、假設語氣等更進階的文法。',
           },
           zh: { type: 'string', description: '該例句的繁體中文翻譯' },
         },
@@ -196,8 +198,8 @@ async function wordInfo(request, env, ctx, cors) {
   if (!word || !/^[A-Za-z][A-Za-z'-]{0,40}$/.test(word)) return json({ error: 'bad word' }, 400, cors);
 
   const key = word.toLowerCase();
-  // v2：2026-07-06 例句難度調整（改版本號讓舊快取全部失效）
-  const cacheKey = new Request(`https://word.cache/v2/${encodeURIComponent(key)}`, { method: 'GET' });
+  // v3：2026-07-07 例句程度調整為國中一年級（改版本號讓舊快取全部失效）
+  const cacheKey = new Request(`https://word.cache/v3/${encodeURIComponent(key)}`, { method: 'GET' });
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) {
@@ -217,9 +219,9 @@ async function wordInfo(request, env, ctx, cors) {
       model: 'claude-haiku-4-5',
       max_tokens: 600,
       system:
-        '你替小學五、六年級（11-12 歲）、母語為繁體中文、英文程度初級的孩子準備英文單字學習資料。' +
-        '例句必須簡單到她一眼看懂：短句（6-10 個字）、基礎單字、簡單句型，內容生活化正向（家人、寵物、學校、玩耍）。' +
-        '寧可簡單也不要展示複雜文法。',
+        '你替國中一年級（13-14 歲）、母語為繁體中文的學生準備英文單字學習資料。' +
+        '例句程度可以比小學課本豐富一些：句子可以稍長（8-14 個字），可以用連接詞銜接兩個子句，' +
+        '但避免罕見冷僻單字、關係子句、被動語態、假設語氣等更進階的文法。內容生活化正向即可。',
       messages: [{ role: 'user', content: `單字：${key}` }],
       output_config: { format: { type: 'json_schema', schema: WORD_SCHEMA } },
     }),
