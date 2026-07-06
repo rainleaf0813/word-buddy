@@ -35,6 +35,7 @@ export default {
       if (url.pathname === '/grammar') return await grammar(request, env, cors);
       if (url.pathname === '/tts') return await tts(request, env, ctx, cors);
       if (url.pathname === '/word') return await wordInfo(request, env, ctx, cors);
+      if (url.pathname === '/sync') return await sync(request, env, cors);
       return json({ error: 'not found' }, 404, cors);
     } catch (err) {
       return json({ error: String(err) }, 500, cors);
@@ -104,6 +105,55 @@ async function grammar(request, env, cors) {
   const data = await res.json();
   const text = data.content?.find((b) => b.type === 'text')?.text || '{}';
   return json(JSON.parse(text), 200, cors);
+}
+
+// ===== 跨裝置同步（KV 儲存，以同步碼為 key）=====
+// 客戶端送上完整本地資料，伺服器與雲端版本合併後存回並回傳合併結果。
+// 合併規則：單字取 learnedAt 較新的那筆（times 取大者）；刪除紀錄（tombstone）較新則移除；
+// 星星取大值；每日學習數逐日取大值。
+
+function mergeData(a, b) {
+  const words = new Map();
+  for (const w of [...(a.words || []), ...(b.words || [])]) {
+    const prev = words.get(w.word);
+    if (!prev) {
+      words.set(w.word, { ...w });
+    } else {
+      const newer = new Date(w.learnedAt || 0) > new Date(prev.learnedAt || 0) ? w : prev;
+      words.set(w.word, { ...newer, times: Math.max(prev.times || 1, w.times || 1) });
+    }
+  }
+  // 刪除紀錄：刪除時間比該字最後學習時間新，才真的移除
+  const deleted = { ...(a.deleted || {}), ...(b.deleted || {}) };
+  for (const [word, delAt] of Object.entries(a.deleted || {})) {
+    if (b.deleted?.[word] && new Date(b.deleted[word]) > new Date(delAt)) deleted[word] = b.deleted[word];
+  }
+  for (const [word, delAt] of Object.entries(deleted)) {
+    const rec = words.get(word);
+    if (rec && new Date(delAt) > new Date(rec.learnedAt || 0)) words.delete(word);
+  }
+  const daily = { ...(a.daily || {}) };
+  for (const [day, n] of Object.entries(b.daily || {})) {
+    daily[day] = Math.max(daily[day] || 0, n);
+  }
+  return {
+    words: [...words.values()].sort((x, y) => new Date(y.learnedAt || 0) - new Date(x.learnedAt || 0)),
+    deleted,
+    stars: Math.max(a.stars || 0, b.stars || 0),
+    daily,
+  };
+}
+
+async function sync(request, env, cors) {
+  if (!env.SYNC) return json({ error: 'sync not configured' }, 503, cors);
+  const { code, data } = await request.json();
+  if (!code || !/^[A-Za-z0-9-]{6,32}$/.test(code)) return json({ error: 'bad code' }, 400, cors);
+
+  const stored = await env.SYNC.get(`sync:${code}`, 'json');
+  const merged = mergeData(stored || {}, data || {});
+  // 一年沒同步就自動清除；每次同步重新計時
+  await env.SYNC.put(`sync:${code}`, JSON.stringify(merged), { expirationTtl: 60 * 60 * 24 * 365 });
+  return json({ data: merged, syncedAt: new Date().toISOString() }, 200, cors);
 }
 
 // ===== 單字資訊（拼讀式音標 + 兒童例句，Claude Haiku，快取 30 天）=====

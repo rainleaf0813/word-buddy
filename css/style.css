@@ -229,6 +229,23 @@ main {
 }
 
 .quiz-prompt { font-weight: 700; margin: 0; }
+
+/* ===== 跨裝置同步 ===== */
+.sync-panel {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.sync-panel:empty { display: none; }
+.sync-title { font-weight: 800; margin-bottom: 4px; }
+.sync-desc { color: var(--ink-soft); font-size: 0.9rem; margin: 4px 0 10px; }
+.sync-code { font-size: 1.3rem; letter-spacing: 2px; color: var(--purple-dark); }
+.sync-join { display: flex; gap: 8px; margin-top: 10px; }
+.sync-code-input { font-size: 1rem; padding: 10px 14px; text-transform: uppercase; }
+.sync-status { color: var(--ink-soft); font-size: 0.85rem; min-height: 1em; margin: 8px 0 0; }
 .hint { color: var(--ink-soft); font-size: 0.95rem; margin-top: -8px; }
 
 /* ===== 輸入 ===== */

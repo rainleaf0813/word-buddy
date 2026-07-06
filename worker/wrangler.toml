@@ -2,6 +2,11 @@ name = "word-buddy-api"
 main = "index.js"
 compatibility_date = "2026-07-01"
 
+# 跨裝置同步資料（單字本、星星、打卡）
+[[kv_namespaces]]
+binding = "SYNC"
+id = "fb40c933d0b54887bc52bc0999b480f1"
+
 # 部署步驟（在 worker/ 資料夾內執行）：
 #   npx wrangler login                       # 登入 Cloudflare（瀏覽器授權一次）
 #   npx wrangler secret put ANTHROPIC_API_KEY

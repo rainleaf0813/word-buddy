@@ -86,20 +86,6 @@ export async function lookupWord(word) {
     definition: m.definitions?.[0]?.definition || '',
   }));
 
-  // 收集字典附的例句（免費模式的例句參考來源），最多 2 句
-  // 只收 4-12 個字的短句，太長的對小學生太難，寧可改用句型模板
-  const examples = [];
-  for (const e of data) {
-    for (const m of e.meanings || []) {
-      for (const def of m.definitions || []) {
-        const wordCount = (def.example || '').split(/\s+/).filter(Boolean).length;
-        if (def.example && wordCount >= 4 && wordCount <= 12 && examples.length < 2) {
-          examples.push({ en: def.example, zh: '' });
-        }
-      }
-    }
-  }
-
   // 補上中文：單字本身 + 每條英文定義（並行翻譯，失敗就留空只顯示英文）
   const [wordZh, ...defsZh] = await Promise.all([
     translateToZh(entry.word),
@@ -107,7 +93,7 @@ export async function lookupWord(word) {
   ]);
   meanings.forEach((m, i) => { m.zh = defsZh[i] || ''; });
 
-  return { found: true, word: entry.word, phonetic, audio, meanings, wordZh, examples };
+  return { found: true, word: entry.word, phonetic, audio, meanings, wordZh };
 }
 
 // 免費模式的例句備援：字典沒附例句時，依詞性給句型模板

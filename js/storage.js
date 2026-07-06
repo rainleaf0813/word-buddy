@@ -10,7 +10,7 @@ function load() {
     data = {};
   }
   // 舊版資料相容：缺欄位補預設值
-  return { words: [], stars: 0, daily: {}, ...data };
+  return { words: [], stars: 0, daily: {}, deleted: {}, ...data };
 }
 
 // 臺北時間的今天（YYYY-MM-DD）
@@ -93,5 +93,44 @@ export function setMode(mode) {
 export function removeWord(word) {
   const data = load();
   data.words = data.words.filter((w) => w.word !== word);
+  data.deleted[word] = new Date().toISOString(); // 同步用的刪除紀錄，避免被別台裝置救回來
+  save(data);
+}
+
+// 模式是否被明確設定過（新裝置預設進 AI 模式用）
+export function hasMode() {
+  return load().mode === 'ai' || load().mode === 'free';
+}
+
+// ===== 跨裝置同步 =====
+
+export function getSyncCode() {
+  return load().syncCode || '';
+}
+
+export function setSyncCode(code) {
+  const data = load();
+  data.syncCode = code;
+  save(data);
+}
+
+export function getLastSyncedAt() {
+  return load().syncedAt || '';
+}
+
+// 匯出要同步的資料（不含裝置本地設定：模式、同步碼）
+export function exportSyncData() {
+  const { words, stars, daily, deleted } = load();
+  return { words, stars, daily, deleted };
+}
+
+// 用伺服器合併後的結果覆蓋本地（保留本地的模式與同步碼）
+export function applySyncData(merged, syncedAt) {
+  const data = load();
+  data.words = merged.words || [];
+  data.stars = merged.stars || 0;
+  data.daily = merged.daily || {};
+  data.deleted = merged.deleted || {};
+  data.syncedAt = syncedAt || new Date().toISOString();
   save(data);
 }

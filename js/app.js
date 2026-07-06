@@ -4,9 +4,11 @@ import { lookupWord, spellingSuggestions, posToZh, templateExamples } from './di
 import { checkGrammar, checkGrammarAI, localChecks } from './grammar.js';
 import { speak, listen, comparePronunciation, sttSupported, ttsSupported } from './speech.js';
 import {
-  getWords, getStars, recordLearned, removeWord, getMode, setMode,
+  getWords, getStars, recordLearned, removeWord, getMode, setMode, hasMode,
   addStar, getDailyProgress, getStreak,
+  getSyncCode, setSyncCode, getLastSyncedAt,
 } from './storage.js';
+import { syncAvailable, generateSyncCode, syncNow, scheduleSync } from './sync.js';
 import { WORKER_URL } from './config.js';
 
 const $ = (id) => document.getElementById(id);
@@ -182,15 +184,16 @@ async function fetchWordInfoAI(word) {
   }
 }
 
-function showWordCard({ word, phonetic, audio, meanings, wordZh, examples }, aiInfo) {
+function showWordCard({ word, phonetic, audio, meanings, wordZh }, aiInfo) {
   state.word = word;
   state.phonetic = phonetic;
   state.respelling = aiInfo?.respelling || '';
   state.audio = audio;
-  // 例句優先順序：Claude 例句（含中文）→ 字典附的例句 → 詞性句型模板
+  // 例句：AI 模式用 Claude 出的簡單例句；免費模式一律用句型模板
+  // （字典附的例句難度不穩定，常超出小學程度，不再使用）
   state.examples = aiInfo?.examples?.length
     ? aiInfo.examples
-    : (examples?.length ? examples : templateExamples(meanings?.[0]?.partOfSpeech, word));
+    : templateExamples(meanings?.[0]?.partOfSpeech, word);
 
   // 音標：AI 模式顯示拼讀式（跟學校講義一樣），免費模式顯示 IPA
   const phoneticDisplay = state.respelling ? `[ ${state.respelling} ]` : (phonetic || '');
@@ -449,6 +452,7 @@ function finishLearning(withSpeech) {
     sentence: state.sentence,
   });
   refreshStars();
+  afterDataChange();
 
   $('done-title').textContent = withSpeech ? '太棒了！全部過關！' : '完成囉！';
   $('done-message').textContent = withSpeech
@@ -471,8 +475,103 @@ $('btn-again').addEventListener('click', goHome);
 $('btn-wordbook').addEventListener('click', () => {
   $('book-search').value = '';
   renderWordbook();
+  renderSyncPanel();
   showScreen('book');
 });
+
+// ===== 跨裝置同步面板 =====
+
+function formatSyncTime(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function renderSyncPanel(message = '') {
+  const panel = $('sync-panel');
+  if (!syncAvailable()) { panel.innerHTML = ''; return; }
+  const code = getSyncCode();
+
+  if (!code) {
+    panel.innerHTML = `
+      <div class="sync-title">☁️ 跨裝置同步</div>
+      <p class="sync-desc">開啟後，手機和電腦的單字本會自動保持一致。</p>
+      <div class="suggestion-chips">
+        <button id="btn-sync-create" class="chip" type="button">✨ 建立新同步碼</button>
+        <button id="btn-sync-join" class="chip" type="button">🔗 輸入已有的同步碼</button>
+      </div>
+      <div id="sync-join-form" class="sync-join hidden">
+        <input id="sync-code-input" class="input-big sync-code-input" type="text" maxlength="16"
+               placeholder="輸入另一台裝置上的同步碼" autocapitalize="characters" autocorrect="off" spellcheck="false">
+        <button id="btn-sync-join-go" class="btn btn-primary" type="button">連結</button>
+      </div>
+      <p class="sync-status">${escapeHtml(message)}</p>`;
+
+    document.getElementById('btn-sync-create').addEventListener('click', async () => {
+      setSyncCode(generateSyncCode());
+      renderSyncPanel('同步中…');
+      const r = await syncNow();
+      renderSyncPanel(r.ok ? '' : '⚠️ 連不上同步服務，稍後會自動再試');
+    });
+    document.getElementById('btn-sync-join').addEventListener('click', () => {
+      document.getElementById('sync-join-form').classList.remove('hidden');
+      document.getElementById('sync-code-input').focus();
+    });
+    document.getElementById('btn-sync-join-go')?.addEventListener('click', async () => {
+      const input = document.getElementById('sync-code-input').value.trim().toUpperCase();
+      if (!/^[A-Z0-9-]{6,32}$/.test(input)) {
+        renderSyncPanel('⚠️ 同步碼格式不對，請再檢查一次');
+        return;
+      }
+      setSyncCode(input);
+      renderSyncPanel('同步中…');
+      const r = await syncNow();
+      if (r.ok) {
+        refreshStars();
+        renderDailyBar();
+        renderWordbook($('book-search').value);
+        renderSyncPanel('✅ 同步完成！');
+      } else {
+        renderSyncPanel('⚠️ 連不上同步服務，請確認網路後再試');
+      }
+    });
+  } else {
+    const last = getLastSyncedAt();
+    panel.innerHTML = `
+      <div class="sync-title">☁️ 跨裝置同步（已開啟）</div>
+      <p class="sync-desc">同步碼：<strong class="sync-code">${escapeHtml(code)}</strong><br>
+      在另一台裝置的單字本點「輸入已有的同步碼」，輸入這組碼即可。</p>
+      <div class="suggestion-chips">
+        <button id="btn-sync-now" class="chip" type="button">🔄 立即同步</button>
+        <button id="btn-sync-off" class="chip" type="button">關閉同步</button>
+      </div>
+      <p class="sync-status">${escapeHtml(message || (last ? `上次同步：${formatSyncTime(last)}` : ''))}</p>`;
+
+    document.getElementById('btn-sync-now').addEventListener('click', async () => {
+      renderSyncPanel('同步中…');
+      const r = await syncNow();
+      if (r.ok) {
+        refreshStars();
+        renderDailyBar();
+        renderWordbook($('book-search').value);
+        renderSyncPanel('✅ 同步完成！');
+      } else {
+        renderSyncPanel('⚠️ 連不上同步服務，請確認網路後再試');
+      }
+    });
+    document.getElementById('btn-sync-off').addEventListener('click', () => {
+      setSyncCode('');
+      renderSyncPanel();
+    });
+  }
+}
+
+// 資料變動後在背景排程同步，完成時順手更新畫面數字
+function afterDataChange() {
+  scheduleSync(() => {
+    refreshStars();
+    renderDailyBar();
+  });
+}
 
 $('btn-book-close').addEventListener('click', goHome);
 $('book-search').addEventListener('input', () => renderWordbook($('book-search').value));
@@ -534,6 +633,7 @@ function renderWordbook(filter = '') {
     item.querySelector('.book-practice').addEventListener('click', () => practiceAgain(record));
     item.querySelector('.book-delete').addEventListener('click', () => {
       removeWord(word);
+      afterDataChange();
       renderWordbook($('book-search').value);
     });
   });
@@ -601,6 +701,7 @@ $('quiz-form').addEventListener('submit', (e) => {
     quiz.correct += 1;
     addStar();
     refreshStars();
+    afterDataChange();
     $('quiz-feedback').innerHTML = card('ok', '答對了！+1 ⭐', `<p>${escapeHtml(w.word)}，很棒！</p>`);
     advanceQuiz();
   } else if (quiz.attempts === 0) {
@@ -649,10 +750,23 @@ $('btn-quiz-exit').addEventListener('click', () => {
 
 // ===== 啟動 =====
 
+// 新裝置預設進 AI 模式（Worker 已設定時），避免不知情地用到免費模式
+if (!hasMode() && aiAvailable()) setMode('ai');
+
 refreshStars();
 renderMode();
 renderDailyBar();
 showScreen('word');
+
+// 開啟 App 時先同步一次，把其他裝置學的字帶進來
+if (getSyncCode()) {
+  syncNow().then((r) => {
+    if (r.ok) {
+      refreshStars();
+      renderDailyBar();
+    }
+  });
+}
 if (!ttsSupported) {
   $('word-feedback').innerHTML = card('hint', '提醒', '<p>這個瀏覽器不支援語音朗讀，建議用 Chrome 或 Safari 開啟。</p>');
 }

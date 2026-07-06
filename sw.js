@@ -11,6 +11,7 @@ const ASSETS = [
   'js/grammar.js',
   'js/speech.js',
   'js/storage.js',
+  'js/sync.js',
   'manifest.json',
   'icons/icon.svg',
 ];
