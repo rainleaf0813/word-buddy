@@ -448,8 +448,17 @@ function handlePronunciationResult(alternatives) {
   const bar = `<div class="score-bar"><div class="score-fill" style="width:${pct}%"></div></div><p>唸對了 ${pct}% 的字</p>`;
 
   if (score >= 1) {
-    $('speak-feedback').innerHTML = card('ok', '完美！這個發音可以了！🌟', bar);
-    setTimeout(() => finishLearning(true), 1200);
+    $('speak-feedback').innerHTML = card('ok', '完美！這個發音可以了！🌟',
+      `${bar}
+       <p>要繼續練習，還是就這樣過關呢？</p>
+       <div class="suggestion-chips">
+         <button id="btn-speak-more" class="chip" type="button">🔁 繼續練</button>
+         <button id="btn-speak-pass" class="btn btn-primary" type="button">✅ 過關！</button>
+       </div>`);
+    document.getElementById('btn-speak-more').addEventListener('click', () => {
+      $('speak-feedback').innerHTML = card('hint', '好，再唸一次！', '<p>按「🎤 換我唸」繼續練習這句話。</p>');
+    });
+    document.getElementById('btn-speak-pass').addEventListener('click', () => finishLearning(true));
   } else if (score >= 0.7) {
     const badWords = words.filter((w) => !w.ok).map((w) => w.text);
     $('speak-feedback').innerHTML = card('hint', '快成功了！',
