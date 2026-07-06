@@ -122,13 +122,18 @@ const WORD_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          en: { type: 'string', description: '使用該單字的英文例句，小學程度、8-12 個字、生活化' },
+          en: {
+            type: 'string',
+            description:
+              '使用該單字的英文例句。嚴格限制：6-10 個英文單字；除目標單字外只能用最常見的基礎單字（CEFR A1-A2）；' +
+              '只用「主詞+動詞+受詞」等簡單句型，禁止關係子句、that/because 子句、被動語態、分詞構句。',
+          },
           zh: { type: 'string', description: '該例句的繁體中文翻譯' },
         },
         required: ['en', 'zh'],
         additionalProperties: false,
       },
-      description: '兩句例句',
+      description: '兩句例句，兩句用不同的簡單句型',
     },
   },
   required: ['respelling', 'examples'],
@@ -141,7 +146,8 @@ async function wordInfo(request, env, ctx, cors) {
   if (!word || !/^[A-Za-z][A-Za-z'-]{0,40}$/.test(word)) return json({ error: 'bad word' }, 400, cors);
 
   const key = word.toLowerCase();
-  const cacheKey = new Request(`https://word.cache/v1/${encodeURIComponent(key)}`, { method: 'GET' });
+  // v2：2026-07-06 例句難度調整（改版本號讓舊快取全部失效）
+  const cacheKey = new Request(`https://word.cache/v2/${encodeURIComponent(key)}`, { method: 'GET' });
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) {
@@ -161,8 +167,9 @@ async function wordInfo(request, env, ctx, cors) {
       model: 'claude-haiku-4-5',
       max_tokens: 600,
       system:
-        '你替 11 歲、母語為繁體中文的女孩準備英文單字學習資料。' +
-        '例句要生活化、正向、適合小學生，兩句使用不同句型。',
+        '你替小學五、六年級（11-12 歲）、母語為繁體中文、英文程度初級的孩子準備英文單字學習資料。' +
+        '例句必須簡單到她一眼看懂：短句（6-10 個字）、基礎單字、簡單句型，內容生活化正向（家人、寵物、學校、玩耍）。' +
+        '寧可簡單也不要展示複雜文法。',
       messages: [{ role: 'user', content: `單字：${key}` }],
       output_config: { format: { type: 'json_schema', schema: WORD_SCHEMA } },
     }),

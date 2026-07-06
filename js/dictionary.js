@@ -87,11 +87,13 @@ export async function lookupWord(word) {
   }));
 
   // 收集字典附的例句（免費模式的例句參考來源），最多 2 句
+  // 只收 4-12 個字的短句，太長的對小學生太難，寧可改用句型模板
   const examples = [];
   for (const e of data) {
     for (const m of e.meanings || []) {
       for (const def of m.definitions || []) {
-        if (def.example && examples.length < 2) {
+        const wordCount = (def.example || '').split(/\s+/).filter(Boolean).length;
+        if (def.example && wordCount >= 4 && wordCount <= 12 && examples.length < 2) {
           examples.push({ en: def.example, zh: '' });
         }
       }
