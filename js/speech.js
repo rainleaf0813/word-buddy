@@ -78,22 +78,6 @@ async function speakViaWorker(text, rate) {
   await currentAudio.play();
 }
 
-// 麥克風暖機：主動要一次麥克風權限再馬上關掉
-// iOS 從桌面圖示開啟（standalone）時，權限不會被記住，且 SpeechRecognition
-// 自己不一定會跳出權限視窗而靜靜失敗；先走 getUserMedia 可以確保視窗跳出、通道打開
-let micWarmed = false;
-
-async function prewarmMic() {
-  if (micWarmed || !navigator.mediaDevices?.getUserMedia) return;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((t) => t.stop());
-    micWarmed = true;
-  } catch {
-    // 權限被拒就讓 SpeechRecognition 自己回報 not-allowed
-  }
-}
-
 // 聽一次使用者說話，回傳候選文字陣列（依信心度排序）
 // 回傳的 controller 有 stop() 可手動結束
 export function listen({ onResult, onError, onEnd }) {
@@ -112,21 +96,11 @@ export function listen({ onResult, onError, onEnd }) {
   rec.onerror = (event) => onError(event.error);
   rec.onend = () => onEnd();
 
-  let started = false;
-  let cancelled = false;
-  prewarmMic().then(() => {
-    if (cancelled) return;
-    started = true;
-    rec.start();
-  });
+  // Safari 的語音辨識要求 start() 必須在使用者手勢當下「同步」呼叫，
+  // 中間不能有任何 await／非同步延遲，否則常常靜靜失敗（收不到任何結果）。
+  rec.start();
 
-  return {
-    stop: () => {
-      cancelled = true;
-      if (started) rec.stop();
-      else onEnd(); // 還沒開始就取消：手動收尾，讓按鈕狀態復原
-    },
-  };
+  return { stop: () => rec.stop() };
 }
 
 // ===== 逐字比對 =====
