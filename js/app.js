@@ -213,13 +213,13 @@ function showWordCard({ word, phonetic, audio, meanings, wordZh }, aiInfo) {
   cardEl.classList.remove('hidden');
 
   $('btn-word-audio').addEventListener('click', () => playWordAudio(word, audio));
-  $('btn-word-next').addEventListener('click', enterSentenceStage);
+  $('btn-word-next').addEventListener('click', () => enterSentenceStage());
 }
 
-// 進入造句階段（學新字與單字本重練共用）
-function enterSentenceStage() {
+// 進入造句階段（學新字與單字本重練共用）；prefill：重練時帶入上次造的句子
+function enterSentenceStage(prefill = '') {
   $('sentence-word').textContent = state.word;
-  $('sentence-input').value = '';
+  $('sentence-input').value = prefill;
   $('sentence-feedback').innerHTML = '';
   renderExamples();
   showScreen('sentence');
@@ -679,7 +679,7 @@ async function practiceAgain(record) {
   const aiInfo = await fetchWordInfoAI(record.word); // 有快取，AI 模式下幾乎即時
   state.examples = aiInfo?.examples?.length ? aiInfo.examples : templateExamples('', record.word);
   if (aiInfo?.respelling) state.respelling = aiInfo.respelling;
-  enterSentenceStage();
+  enterSentenceStage(record.sentence || '');
 }
 
 // ===== 複習測驗「考考我」=====
