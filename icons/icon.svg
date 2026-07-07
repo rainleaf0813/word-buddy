@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#8f6fff"/>
-      <stop offset="1" stop-color="#ff7ab8"/>
+      <stop offset="0" stop-color="#d3b49e"/>
+      <stop offset="1" stop-color="#c9a893"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
   <!-- 對話泡泡 -->
-  <path d="M256 96c-88 0-160 58-160 130 0 44 27 83 69 106l-14 52 62-32c14 3 28 4 43 4 88 0 160-58 160-130S344 96 256 96z" fill="#ffffff"/>
+  <path d="M256 96c-88 0-160 58-160 130 0 44 27 83 69 106l-14 52 62-32c14 3 28 4 43 4 88 0 160-58 160-130S344 96 256 96z" fill="#fffdfa"/>
   <!-- 笑臉 -->
-  <circle cx="200" cy="210" r="16" fill="#2b2350"/>
-  <circle cx="312" cy="210" r="16" fill="#2b2350"/>
-  <path d="M196 258c18 26 42 38 60 38s42-12 60-38" stroke="#2b2350" stroke-width="16" stroke-linecap="round" fill="none"/>
+  <circle cx="200" cy="210" r="16" fill="#5f5142"/>
+  <circle cx="312" cy="210" r="16" fill="#5f5142"/>
+  <path d="M196 258c18 26 42 38 60 38s42-12 60-38" stroke="#5f5142" stroke-width="16" stroke-linecap="round" fill="none"/>
   <!-- ABC -->
   <text x="256" y="452" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="bold" fill="#ffffff">ABC</text>
 </svg>

@@ -1,17 +1,18 @@
-/* ===== 基礎 ===== */
+/* ===== 基礎（奶茶莫蘭迪色系；變數名沿用舊稱，只改值） ===== */
 :root {
-  --purple: #7c5cff;
-  --purple-dark: #5a3fe0;
-  --pink: #ff7ab8;
-  --yellow: #ffd166;
-  --green: #2ec27e;
-  --red: #e05260;
-  --ink: #2b2350;
-  --ink-soft: #6a6390;
-  --card: #ffffff;
-  --bg: linear-gradient(160deg, #f3efff 0%, #ffeef7 60%, #fff8e7 100%);
-  --radius: 20px;
-  --shadow: 0 6px 24px rgba(90, 63, 224, 0.12);
+  --purple: #c9a893;        /* 主色：奶茶 */
+  --purple-dark: #8c7462;   /* 深奶茶 */
+  --pink: #d8a8a3;          /* 乾燥玫瑰 */
+  --yellow: #e5cfa3;        /* 奶油杏 */
+  --green: #8ba888;         /* 鼠尾草 */
+  --red: #c96f6f;           /* 霧紅 */
+  --ink: #5f5142;
+  --ink-soft: #a08874;
+  --card: #fffdfa;
+  --bg: #efe9e3;
+  --serif: "Libre Baskerville", Georgia, "Times New Roman", serif;
+  --radius: 14px;
+  --shadow: 0 2px 12px rgba(122, 106, 92, 0.12);
 }
 
 * { box-sizing: border-box; }
@@ -24,7 +25,9 @@ html, body {
 
 body {
   font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
-  background: var(--bg);
+  background-color: var(--bg);
+  /* 低調點綴：細葉小花枝 + 零星小圓點（亞麻底上的暖灰色，約 6-8% 存在感） */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cg fill='none' stroke='%23d8c9b8' stroke-width='1.2' stroke-linecap='round' opacity='0.5'%3E%3Cpath d='M26 40c0-10 2-20 8-26M26 40c-7-3-10-9-10-15M26 40c7-5 11-11 11-18'/%3E%3C/g%3E%3Cg fill='%23dccfc0' opacity='0.6'%3E%3Ccircle cx='104' cy='30' r='1.7'/%3E%3Ccircle cx='42' cy='104' r='1.7'/%3E%3Ccircle cx='120' cy='116' r='1.7'/%3E%3Ccircle cx='76' cy='70' r='1.3'/%3E%3C/g%3E%3C/svg%3E");
   background-attachment: fixed;
   color: var(--ink);
   font-size: 17px;
@@ -107,6 +110,8 @@ main {
 }
 
 .screen-title { font-size: 1.45rem; margin: 4px 0 16px; }
+/* 造句頁標題裡的英文單字用襯線字型突顯 */
+#sentence-word { font-family: var(--serif); color: var(--purple-dark); }
 
 /* ===== 模式切換 ===== */
 .mode-switch {
@@ -155,12 +160,12 @@ main {
   box-shadow: var(--shadow);
 }
 
-.daily-bar.is-done { background: #e6f9ef; }
+.daily-bar.is-done { background: #e9efe6; }
 .daily-bar .daily-streak { margin-left: auto; color: var(--ink-soft); }
 
 /* ===== 例句參考 ===== */
 .examples-box {
-  background: #fff8e2;
+  background: #f7f1e3;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 12px 16px;
@@ -284,18 +289,18 @@ main {
 .btn:active { transform: scale(0.96); }
 .btn:disabled { opacity: 0.55; cursor: wait; }
 
-.btn-primary { background: var(--purple); color: #fff; box-shadow: var(--shadow); }
-.btn-secondary { background: var(--card); color: var(--purple-dark); box-shadow: var(--shadow); }
+.btn-primary { background: var(--purple); color: #fffdfa; box-shadow: var(--shadow); }
+.btn-secondary { background: var(--card); color: var(--purple-dark); border: 1px solid #d8c9bb; box-shadow: var(--shadow); }
 
-.btn-mic { background: var(--pink); color: #fff; box-shadow: var(--shadow); }
+.btn-mic { background: var(--pink); color: #fffdfa; box-shadow: var(--shadow); }
 .btn-mic.is-recording {
   background: var(--red);
   animation: pulse 1s infinite;
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 82, 96, 0.5); }
-  50% { box-shadow: 0 0 0 14px rgba(224, 82, 96, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 111, 111, 0.5); }
+  50% { box-shadow: 0 0 0 14px rgba(201, 111, 111, 0); }
 }
 
 .btn-link {
@@ -320,16 +325,19 @@ main {
   padding: 16px 18px;
 }
 
-.card-ok { border-left: 6px solid var(--green); }
-.card-error { border-left: 6px solid var(--red); }
-.card-hint { border-left: 6px solid var(--yellow); }
+.card-ok { background: #e9efe6; }
+.card-error { background: #f6e7e4; }
+.card-hint { background: #f7f0e2; }
+.card-ok .card-title { color: #5f7057; }
+.card-error .card-title { color: var(--red); }
+.card-hint .card-title { color: #9a824f; }
 
 .card .card-title { font-weight: 800; margin: 0 0 6px; }
 .card p { margin: 6px 0; }
 .card .original-msg { color: var(--ink-soft); font-size: 0.85rem; }
 
 .error-snippet {
-  background: #ffe9ec;
+  background: #f6e4e2;
   color: var(--red);
   font-weight: 700;
   border-radius: 6px;
@@ -339,8 +347,8 @@ main {
 .suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 
 .chip {
-  border: 2px solid var(--purple);
-  background: #f5f1ff;
+  border: 1.5px solid var(--purple);
+  background: #f9f5ef;
   color: var(--purple-dark);
   border-radius: 999px;
   padding: 6px 14px;
@@ -350,7 +358,7 @@ main {
   cursor: pointer;
 }
 
-.chip:active { background: var(--purple); color: #fff; }
+.chip:active { background: var(--purple); color: #fffdfa; }
 
 /* ===== 單字卡 ===== */
 .word-card {
@@ -362,14 +370,15 @@ main {
   text-align: center;
 }
 
-.word-card .word-text { font-size: 2.2rem; font-weight: 800; color: var(--purple-dark); }
+.word-card .word-text { font-size: 2.3rem; font-weight: 700; color: var(--purple-dark); font-family: var(--serif); }
 .word-card .word-phonetic { color: var(--ink-soft); font-size: 1.1rem; margin: 2px 0 4px; }
 .word-card .word-zh { font-size: 1.2rem; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
 .word-card .def-zh { color: var(--ink-soft); font-size: 0.9rem; margin-top: 2px; }
 .word-card .word-meanings { text-align: left; margin: 12px 0; }
 .word-card .word-meanings li { margin: 4px 0; font-size: 0.95rem; }
 .word-card .pos-tag {
-  background: var(--yellow);
+  background: #dde5da;
+  color: #5f7057;
   border-radius: 6px;
   padding: 1px 7px;
   font-size: 0.85rem;
@@ -395,7 +404,7 @@ main {
 
 .speak-word { cursor: pointer; border-radius: 8px; padding: 2px 4px; }
 .speak-word.is-good { color: var(--green); }
-.speak-word.is-bad { color: var(--red); background: #ffe9ec; text-decoration: underline wavy; }
+.speak-word.is-bad { color: var(--red); background: #f6e4e2; text-decoration: underline wavy; }
 
 .speak-controls { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .speak-footer { display: flex; justify-content: space-between; }
@@ -403,7 +412,7 @@ main {
 .score-bar {
   height: 14px;
   border-radius: 999px;
-  background: #eee6ff;
+  background: #e4dbd0;
   overflow: hidden;
 }
 .score-bar .score-fill {
@@ -444,14 +453,15 @@ main {
   gap: 12px;
 }
 
-.book-item .book-word { font-weight: 800; font-size: 1.2rem; color: var(--purple-dark); }
+.book-item .book-word { font-weight: 700; font-size: 1.2rem; color: var(--purple-dark); font-family: var(--serif); }
+.book-item .book-word small { font-family: "PingFang TC", "Noto Sans TC", system-ui, sans-serif; font-weight: 400; }
 .book-item .book-sentence { color: var(--ink-soft); font-size: 0.9rem; }
 .book-item .book-main { flex: 1; min-width: 0; }
 .book-item .book-actions { display: flex; gap: 6px; }
 
 .icon-btn {
   border: none;
-  background: #f5f1ff;
+  background: #f2ece4;
   border-radius: 10px;
   font-size: 1.1rem;
   padding: 8px 10px;

@@ -4,8 +4,8 @@
   "description": "學單字、練造句、說英文的小幫手",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#f3efff",
-  "theme_color": "#7c5cff",
+  "background_color": "#efe9e3",
+  "theme_color": "#c9a893",
   "lang": "zh-Hant",
   "icons": [
     { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },

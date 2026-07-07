@@ -491,7 +491,7 @@ function finishLearning(withSpeech) {
     : `你學會了「${state.word}」：會拼也會造句，拿到一顆星星 ⭐ 下次再挑戰發音！`;
 
   const confetti = document.querySelector('.confetti');
-  const emojis = ['🎉', '⭐', '🎈', '✨', '🍭'];
+  const emojis = ['🤎', '🌷', '⭐', '✨', '☕'];
   confetti.innerHTML = Array.from({ length: 18 }, (_, i) =>
     `<span style="left:${(i * 37) % 100}%;animation-delay:${(i % 6) * 0.35}s">${emojis[i % emojis.length]}</span>`
   ).join('');
