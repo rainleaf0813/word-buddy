@@ -6,6 +6,7 @@ import { speak, stopSpeaking, listen, comparePronunciation, sttSupported, ttsSup
 import {
   getWords, getStars, recordLearned, removeWord, getMode, setMode, hasMode,
   addStar, getDailyProgress, getStreak,
+  getMilestone, setMilestone, normalizeMilestone,
   getSyncCode, setSyncCode, getLastSyncedAt,
 } from './storage.js';
 import { syncAvailable, generateSyncCode, syncNow, scheduleSync } from './sync.js';
@@ -497,14 +498,94 @@ function finishLearning(withSpeech) {
   ).join('');
 
   showScreen('done');
+  checkMilestone(); // 跨過整十門檻時，600ms 後跳出徽章慶祝
 }
 
 $('btn-again').addEventListener('click', goHome);
+
+// ===== 徽章里程碑（每 10 個單字解鎖一枚成長徽章） =====
+
+const BADGES = [
+  { emoji: '🌱', name: '種子徽章' },
+  { emoji: '🌷', name: '小花徽章' },
+  { emoji: '🌳', name: '小樹徽章' },
+  { emoji: '🌟', name: '星星徽章' },
+  { emoji: '🌈', name: '彩虹徽章' },
+  { emoji: '🦋', name: '蝴蝶徽章' },
+  { emoji: '👑', name: '皇冠徽章' },
+  { emoji: '💎', name: '寶石徽章' },
+  { emoji: '🚀', name: '火箭徽章' },
+  { emoji: '🏆', name: '金盃徽章' },
+];
+
+// n = 第幾枚（1 起算）；超過 10 枚之後循環，加上輪數標記
+function badgeInfo(n) {
+  const base = BADGES[(n - 1) % BADGES.length];
+  const round = Math.ceil(n / BADGES.length);
+  return {
+    emoji: base.emoji,
+    name: round > 1 ? `${base.name} ×${round}` : base.name,
+    count: n * 10,
+  };
+}
+
+function badgeHtml(n, state) {
+  const b = badgeInfo(n);
+  return `<div class="badge is-${state}" title="${escapeHtml(b.name)}">
+    <span class="badge-emoji">${b.emoji}</span><span class="badge-count">${b.count}</span>
+  </div>`;
+}
+
+// 學完一個字之後呼叫：本機單字數跨過整十門檻才慶祝
+function checkMilestone() {
+  const count = getWords().length;
+  const reached = Math.floor(count / 10) * 10;
+  if (reached <= getMilestone() || reached === 0) return;
+  setMilestone(reached);
+  const current = reached / 10; // 本次解鎖第幾枚
+  const total = current + 2;    // 順便預告後面兩枚
+  $('milestone-badges').innerHTML = Array.from({ length: total }, (_, i) => {
+    const n = i + 1;
+    const state = n < current ? 'earned' : n === current ? 'new' : 'locked';
+    return badgeHtml(n, state);
+  }).join('');
+  const b = badgeInfo(current);
+  const next = badgeInfo(current + 1);
+  $('milestone-message').innerHTML =
+    `${b.emoji} ${escapeHtml(b.name)} GET！你已經學會 <strong>${b.count}</strong> 個單字<br>` +
+    `<span class="milestone-next">下一枚：${next.count} 個單字的${next.emoji} ${escapeHtml(next.name)}</span>`;
+  setTimeout(() => {
+    $('milestone-overlay').classList.remove('hidden');
+    // 徽章多到需要捲動時，把本次新徽章捲到中間
+    $('milestone-badges').querySelector('.is-new')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, 600);
+}
+
+$('btn-milestone-close').addEventListener('click', () => {
+  $('milestone-overlay').classList.add('hidden');
+});
+
+// 單字本頂端的徽章收集列（沒有徽章就整排隱藏）
+function renderBookBadges() {
+  const el = $('book-badges');
+  const earned = Math.floor(getWords().length / 10);
+  if (!earned) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `<div class="badge-row">${
+    Array.from({ length: earned + 1 }, (_, i) =>
+      badgeHtml(i + 1, i + 1 <= earned ? 'earned' : 'locked')).join('')
+  }</div>`;
+  el.classList.remove('hidden');
+}
 
 // ===== 單字本 =====
 
 $('btn-wordbook').addEventListener('click', () => {
   $('book-search').value = '';
+  renderBookBadges();
   renderWordbook();
   renderSyncPanel();
   showScreen('book');
@@ -783,6 +864,9 @@ $('btn-quiz-exit').addEventListener('click', () => {
 
 // 新裝置預設進 AI 模式（Worker 已設定時），避免不知情地用到免費模式
 if (!hasMode() && aiAvailable()) setMode('ai');
+
+// 啟動時校正徽章里程碑（既有的字不補慶祝，只慶祝之後新跨過的門檻）
+normalizeMilestone();
 
 refreshStars();
 renderMode();

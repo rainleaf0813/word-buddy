@@ -440,6 +440,98 @@ main {
   to { transform: translateY(70vh) rotate(360deg); opacity: 0; }
 }
 
+/* ===== 徽章里程碑 ===== */
+.milestone-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(95, 81, 66, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+
+.milestone-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(95, 81, 66, 0.25);
+  padding: 26px 22px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  animation: pop-in 0.3s ease;
+}
+
+.milestone-title { font-size: 1.35rem; margin: 0 0 2px; }
+.milestone-sub { color: var(--ink-soft); font-size: 0.9rem; margin: 0 0 16px; }
+.milestone-message { font-size: 0.95rem; margin: 14px 0 18px; }
+.milestone-next { color: var(--ink-soft); font-size: 0.85rem; }
+
+.badge-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 6px 2px;
+}
+
+/* 內容不滿一行時置中，滿了則可完整捲動（justify-content: center 會裁掉最左邊） */
+.badge-row > :first-child { margin-left: auto; }
+.badge-row > :last-child { margin-right: auto; }
+
+.badge {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.badge .badge-emoji { font-size: 1.15rem; line-height: 1.2; }
+.badge .badge-count { font-size: 0.7rem; font-weight: 700; line-height: 1.1; }
+
+.badge.is-earned { background: #e4d5c6; color: var(--purple-dark); }
+.badge.is-new {
+  width: 68px;
+  height: 68px;
+  background: var(--purple);
+  color: #fffdfa;
+  border: 3px solid #fffdfa;
+  outline: 2px solid var(--purple);
+  animation: badge-pop 0.5s ease;
+}
+.badge.is-new .badge-emoji { font-size: 1.5rem; }
+.badge.is-locked {
+  background: var(--card);
+  border: 2px dashed #d8c9bb;
+  color: var(--ink-soft);
+}
+.badge.is-locked .badge-emoji { opacity: 0.4; }
+
+@keyframes badge-pop {
+  0% { transform: scale(0.4); }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* 單字本頂端的收集列 */
+.book-badges {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 8px 12px;
+  margin-bottom: 14px;
+}
+.book-badges .badge-row > :first-child { margin-left: 0; }
+.book-badges .badge-row > :last-child { margin-right: 0; }
+.book-badges .badge { width: 48px; height: 48px; }
+.book-badges .badge.is-locked { width: 48px; height: 48px; }
+
 /* ===== 單字本 ===== */
 .book-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
 

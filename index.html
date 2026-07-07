@@ -106,6 +106,7 @@
                placeholder="🔍 搜尋學過的單字…" autocapitalize="off" autocorrect="off" spellcheck="false">
         <button id="btn-quiz" class="btn btn-primary" type="button">🎯 考考我</button>
       </div>
+      <div id="book-badges" class="book-badges hidden"></div>
       <div id="book-list" class="book-list"></div>
       <div id="sync-panel" class="sync-panel"></div>
       <button id="btn-book-close" class="btn btn-secondary" type="button">回去學單字</button>
@@ -128,6 +129,17 @@
       <button id="btn-quiz-exit" class="btn-link" type="button">← 回單字本</button>
     </section>
   </main>
+
+  <!-- 每滿 10 個單字的徽章慶祝畫面（蓋在過關頁上） -->
+  <div id="milestone-overlay" class="milestone-overlay hidden" role="dialog" aria-label="徽章慶祝">
+    <div class="milestone-card">
+      <h2 class="milestone-title">新徽章入手！🎉</h2>
+      <p class="milestone-sub">你的收集冊又多了一枚</p>
+      <div id="milestone-badges" class="badge-row"></div>
+      <p id="milestone-message" class="milestone-message"></p>
+      <button id="btn-milestone-close" class="btn btn-primary" type="button">繼續收集 →</button>
+    </div>
+  </div>
 
   <script type="module" src="js/app.js"></script>
   <script>

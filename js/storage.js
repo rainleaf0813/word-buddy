@@ -102,6 +102,29 @@ export function hasMode() {
   return load().mode === 'ai' || load().mode === 'free';
 }
 
+// ===== 徽章里程碑（每 10 個單字慶祝一次；純本機，不進同步資料） =====
+
+export function getMilestone() {
+  return load().milestone || 0;
+}
+
+export function setMilestone(n) {
+  const data = load();
+  data.milestone = n;
+  save(data);
+}
+
+// 靜默校正：把里程碑直接推到目前單字數的整十門檻，不觸發慶祝
+// （同步把別台裝置的字拉進來、或 App 啟動時用，避免誤慶祝）
+export function normalizeMilestone() {
+  const data = load();
+  const reached = Math.floor(data.words.length / 10) * 10;
+  if ((data.milestone || 0) < reached) {
+    data.milestone = reached;
+    save(data);
+  }
+}
+
 // ===== 跨裝置同步 =====
 
 export function getSyncCode() {
@@ -133,4 +156,5 @@ export function applySyncData(merged, syncedAt) {
   data.deleted = merged.deleted || {};
   data.syncedAt = syncedAt || new Date().toISOString();
   save(data);
+  normalizeMilestone(); // 別台裝置的字被拉進來不算「本機學會」，不觸發慶祝
 }
