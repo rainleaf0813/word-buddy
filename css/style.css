@@ -26,8 +26,8 @@ html, body {
 body {
   font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
   background-color: var(--bg);
-  /* 低調點綴：細葉小花枝 + 零星小圓點（亞麻底上的暖灰色，約 6-8% 存在感） */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cg fill='none' stroke='%23d8c9b8' stroke-width='1.2' stroke-linecap='round' opacity='0.5'%3E%3Cpath d='M26 40c0-10 2-20 8-26M26 40c-7-3-10-9-10-15M26 40c7-5 11-11 11-18'/%3E%3C/g%3E%3Cg fill='%23dccfc0' opacity='0.6'%3E%3Ccircle cx='104' cy='30' r='1.7'/%3E%3Ccircle cx='42' cy='104' r='1.7'/%3E%3Ccircle cx='120' cy='116' r='1.7'/%3E%3Ccircle cx='76' cy='70' r='1.3'/%3E%3C/g%3E%3C/svg%3E");
+  /* 低調點綴：零星小圓點（亞麻底上的暖灰色） */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cg fill='%23dccfc0' opacity='0.6'%3E%3Ccircle cx='24' cy='36' r='1.7'/%3E%3Ccircle cx='104' cy='30' r='1.7'/%3E%3Ccircle cx='42' cy='104' r='1.7'/%3E%3Ccircle cx='120' cy='116' r='1.7'/%3E%3Ccircle cx='76' cy='70' r='1.3'/%3E%3C/g%3E%3C/svg%3E");
   background-attachment: fixed;
   color: var(--ink);
   font-size: 17px;
