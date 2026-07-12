@@ -28,6 +28,10 @@ const state = {
 const STEP_OF_SCREEN = { word: 'word', sentence: 'sentence', speak: 'speak' };
 
 function showScreen(name) {
+  // 離開發音頁時，若麥克風還在聽，一定要先關掉，否則懸置的錄音會讓下次「換我唸」誤判狀態
+  if ($('screen-speak').classList.contains('is-active') && name !== 'speak') {
+    stopRecording();
+  }
   document.querySelectorAll('.screen').forEach((el) => el.classList.remove('is-active'));
   $(`screen-${name}`).classList.add('is-active');
 
@@ -360,6 +364,17 @@ $('btn-back-word').addEventListener('click', () => showScreen('word'));
 // ===== 階段 3：練發音 =====
 
 let recorder = null;
+let recorderToken = 0; // 每次啟動遞增；用來讓懸置舊錄音的非同步回呼失效，避免搶改新錄音的畫面狀態
+
+// 強制關閉目前的錄音（畫面切走、或要播放其他聲音前呼叫）
+function stopRecording() {
+  if (recorder) recorder.stop();
+  recorder = null;
+  recorderToken += 1;
+  const btn = $('btn-record');
+  btn.classList.remove('is-recording');
+  btn.textContent = '🎤 換我唸';
+}
 
 // 是否從桌面圖示開啟（standalone 模式）：麥克風權限每次都要重新允許
 const isStandalone =
@@ -389,11 +404,17 @@ function renderSpeakSentence(words) {
   }).join('');
   // 點任何字都可以單獨聽發音
   el.querySelectorAll('.speak-word').forEach((span) => {
-    span.addEventListener('click', () => speak(span.dataset.word, { rate: 0.7 }));
+    span.addEventListener('click', () => {
+      stopRecording();
+      speak(span.dataset.word, { rate: 0.7 });
+    });
   });
 }
 
-$('btn-play-standard').addEventListener('click', () => speak(state.sentence, { rate: 0.85 }));
+$('btn-play-standard').addEventListener('click', () => {
+  stopRecording(); // 麥克風還在聽的話先關掉，避免播放的聲音跟收音互搶音訊通道
+  speak(state.sentence, { rate: 0.85 });
+});
 
 $('btn-record').addEventListener('click', () => {
   const btn = $('btn-record');
@@ -406,13 +427,18 @@ $('btn-record').addEventListener('click', () => {
   btn.textContent = '🛑 我唸完了';
   $('speak-feedback').innerHTML = card('hint', '我在聽…', '<p>對著麥克風，慢慢唸出你的句子 🎧</p>');
 
+  // token：只有「目前這一次」的回呼可以改動 recorder/按鈕狀態，
+  // 懸置的舊錄音之後才觸發的 onEnd 不會搶改已經開始的新錄音
+  const myToken = ++recorderToken;
   let gotResult = false;
   recorder = listen({
     onResult: (alternatives) => {
+      if (myToken !== recorderToken) return;
       gotResult = true;
       handlePronunciationResult(alternatives);
     },
     onError: (code) => {
+      if (myToken !== recorderToken) return;
       gotResult = true;
       const msg = {
         'not-allowed': '需要麥克風權限才能練發音。請在跳出的視窗按「允許」。',
@@ -420,7 +446,7 @@ $('btn-record').addEventListener('click', () => {
         'no-speech': '沒有聽到聲音，再靠近麥克風一點、大聲一點試試看。',
         'audio-capture': '找不到麥克風，檢查一下設備。',
         'network': '語音辨識需要網路，檢查一下連線。',
-      }[code] || `語音辨識出了點問題（${code}），再試一次。`;
+      }[code] || `語音辨識出了點問題（${code}），稍等一秒讓麥克風釋放，再試一次。`;
       // 桌面小 App 模式的麥克風權限不會被記住，失敗時多給一條路
       const standaloneTip = isStandalone
         ? '<p>💡 從桌面圖示開啟時，每次都要重新允許麥克風。如果一直失敗，把 App 往上滑關掉再重開，或改用 Safari 開啟練發音。</p>'
@@ -428,9 +454,13 @@ $('btn-record').addEventListener('click', () => {
       $('speak-feedback').innerHTML = card('error', '咦？', `<p>${msg}</p>${standaloneTip}`);
     },
     onEnd: () => {
+      if (myToken !== recorderToken) return;
       recorder = null;
       btn.classList.remove('is-recording');
       btn.textContent = '🎤 換我唸';
+      // 短暫鎖住按鈕，給 iOS 一點時間真正釋放麥克風，避免連按搶資源又觸發錯誤
+      btn.disabled = true;
+      setTimeout(() => { if (myToken === recorderToken) btn.disabled = false; }, 400);
       if (!gotResult) {
         const standaloneTip = isStandalone
           ? '<p>💡 一直聽不到的話，把 App 往上滑關掉再重開，或改用 Safari 開啟練發音。</p>'
